@@ -56,10 +56,10 @@ func (client *Client) ListServices() error {
             return nil
         }
 
-        if _, err := msg.parse(client.genlFamily, IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy); err != nil {
+        if attrs, err := msg.parse(client.genlFamily, IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy); err != nil {
             return err
         } else {
-            log.Printf("ipvs:Client.ListServices: ...\n")
+            log.Printf("ipvs:Client.ListServices: %v\n", ipvs_cmd_policy.Dump(attrs))
         }
     }
     return nil

@@ -146,8 +146,6 @@ func (msg *Message) parse (genlFamily uint16, genlCmd uint8, genlPolicy nlgo.Map
         log.Printf("ipvs:Message.parse: %s\n%s", err, hex.Dump(msg.GenlData))
         return attrs, err
     } else {
-        log.Printf("ipvs:Client.read: genlAttrs = %s\n", genlPolicy.Dump(attrs))
-
         return attrs, nil
     }
 }
