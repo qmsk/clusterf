@@ -47,11 +47,24 @@ func (client *Client) init () error {
 
 type Message struct {
     Nl      syscall.NlMsghdr
+    NlErr   syscall.NlMsgerr
     Genl    nlgo.GenlMsghdr
     Attrs   nlgo.AttrList
 }
 
-/* Ugly low-level netlink stuff */
+/* Send a simple request without any attrs */
+func (client *Client) send (cmd uint8, flags uint16) error {
+    if err := nlgo.GenlSendSimple(client.nlSock, client.genlFamily, cmd, IPVS_GENL_VERSION, flags); err != nil {
+        log.Printf("GenlSendSimple %d %d: %s\n", cmd, flags, err)
+        return err
+    }
+
+    log.Printf("ipvs:Client.send: cmd=%v\n", cmd)
+
+    return nil
+}
+
+/* Receive and parse a genl message */
 func (client *Client) recv (msg *Message) error {
     buf := make([]byte, client.recvSize)
 
@@ -76,9 +89,15 @@ func (client *Client) recv (msg *Message) error {
             switch msg.Nl.Type {
             case syscall.NLMSG_ERROR:
                 // TODO: check length
-                msg_err := (*syscall.NlMsgerr)(unsafe.Pointer(&data[0]))
+                msg.NlErr = *(*syscall.NlMsgerr)(unsafe.Pointer(&data[0]))
 
-                return nlgo.NlError(msg_err.Error)
+                log.Printf("ipvs:Client.recv: msg.NlErr = %+v\n", msg.NlErr)
+
+                if msg.NlErr.Error != 0 {
+                    return nlgo.NlError(msg.NlErr.Error)
+                } else {
+                    break
+                }
 
             case syscall.NLMSG_NOOP:
                 continue
@@ -119,25 +138,38 @@ func (client *Client) recv (msg *Message) error {
     }
 }
 
-func (client *Client) cmd (cmd uint8, flags uint16, msg *Message) error {
-    if err := nlgo.GenlSendSimple(client.nlSock, client.genlFamily, cmd, IPVS_GENL_VERSION, flags); err != nil {
-        log.Printf("GenlSendSimple %d %d: %s\n", cmd, flags, err)
+/* Execute a command with no return value */
+func (client *Client) exec (cmd uint8) error {
+    var msg Message
+
+    if err := client.send(cmd, 0); err != nil {
         return err
-    } else {
-        log.Printf("GenlSendSimple %d %d\n", cmd, flags)
     }
 
-    return client.recv(msg)
+    if err := client.recv(&msg); err != nil {
+        return err
+    }
+
+    if msg.Nl.Type != syscall.NLMSG_ERROR {
+        return fmt.Errorf("ipvs:Client.exec: Unexpected response: %+v", msg)
+    }
+
+    // recv() will have returned the NlError if nonzero
+    return nil
 }
 
 func (client *Client) GetInfo() error {
     var msg Message
 
-    if err := client.cmd(IPVS_CMD_GET_INFO, 0, &msg); err != nil {
+    if err := client.send(IPVS_CMD_GET_INFO, 0); err != nil {
         return err
     }
 
-    if msg.Genl.Cmd != IPVS_CMD_SET_INFO {
+    if err := client.recv(&msg); err != nil {
+        return err
+    }
+
+    if msg.Nl.Type != client.genlFamily || msg.Genl.Cmd != IPVS_CMD_SET_INFO {
         fmt.Errorf("ipvs:Client.GetInfo: Unsupported response: %+v", msg)
     }
 
@@ -152,4 +184,8 @@ func (client *Client) GetInfo() error {
     )
 
     return nil
+}
+
+func (client *Client) Flush() error {
+    return client.exec(IPVS_CMD_FLUSH)
 }
