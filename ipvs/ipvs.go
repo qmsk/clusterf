@@ -1,6 +1,7 @@
 package ipvs
 
 import (
+    "encoding/hex"
     "fmt"
     "log"
     "github.com/hkwi/nlgo"
@@ -12,6 +13,7 @@ type Client struct {
     nlSock          *nlgo.NlSock
     genlFamily      uint16
     recvSize        uint
+    recvQueue       []syscall.NetlinkMessage
 }
 
 func Open() (*Client, error) {
@@ -47,9 +49,9 @@ func (client *Client) init () error {
 
 type Message struct {
     Nl      syscall.NlMsghdr
-    NlErr   syscall.NlMsgerr
+    NlErr       syscall.NlMsgerr
     Genl    nlgo.GenlMsghdr
-    Attrs   nlgo.AttrList
+    GenlData    []byte
 }
 
 /* Send a simple request without any attrs */
@@ -59,90 +61,102 @@ func (client *Client) send (cmd uint8, flags uint16) error {
         return err
     }
 
-    log.Printf("ipvs:Client.send: cmd=%v\n", cmd)
+    log.Printf("ipvs:Client.send: cmd=%v flags=%#04x\n", cmd, flags)
 
     return nil
 }
 
 /* Receive and parse a genl message */
 func (client *Client) recv (msg *Message) error {
-    buf := make([]byte, client.recvSize)
+    if len(client.recvQueue) == 0 {
+        buf := make([]byte, client.recvSize)
 
-    if ret, _, err := syscall.Recvfrom(client.nlSock.Fd, buf, syscall.MSG_TRUNC); err != nil {
-        return err
-    } else if ret > len(buf) {
-        return nlgo.NLE_MSG_TRUNC
-    } else {
-        buf = buf[:ret]
-    }
-
-    if nl_msgs, err := syscall.ParseNetlinkMessage(buf); err != nil {
-        return err
-    } else {
-        for _, nl_msg := range nl_msgs {
-            msg.Nl = nl_msg.Header
-            data := nl_msg.Data
-
-            log.Printf("ipvs:Client.recv: msg.Nl = %+v\n", msg.Nl)
-
-            // TODO: check msg.Header.Pid, msg.Header.Seq?
-            switch msg.Nl.Type {
-            case syscall.NLMSG_ERROR:
-                // TODO: check length
-                msg.NlErr = *(*syscall.NlMsgerr)(unsafe.Pointer(&data[0]))
-
-                log.Printf("ipvs:Client.recv: msg.NlErr = %+v\n", msg.NlErr)
-
-                if msg.NlErr.Error != 0 {
-                    return nlgo.NlError(msg.NlErr.Error)
-                } else {
-                    break
-                }
-
-            case syscall.NLMSG_NOOP:
-                continue
-
-            case syscall.NLMSG_DONE:
-                return fmt.Errorf("ipvs:Client.recv: Unsupported NLMSG_DONE")
-
-            case client.genlFamily:
-                msg.Genl = *(*nlgo.GenlMsghdr)(unsafe.Pointer(&data[0]))
-                data = data[nlgo.GENL_HDRLEN:]
-
-                log.Printf("ipvs:Client.recv: msg.Genl = %+v\n", msg.Genl)
-
-                var genlPolicy nlgo.MapPolicy
-                switch msg.Genl.Cmd {
-                    case IPVS_CMD_SET_INFO:         genlPolicy = IPVS_INFO_POLICY
-                    default:                        return fmt.Errorf("ipvs:Client.recv: Unknown genlmsg.cmd %x\n", msg.Genl.Cmd)
-                }
-
-                if attrs, err := genlPolicy.Parse(data); err != nil {
-                    return err
-                } else {
-                    log.Printf("ipvs:Client.recv: msg.Attrs = %s\n", genlPolicy.Dump(attrs))
-
-                    msg.Attrs = attrs
-                }
-
-            default:
-                return fmt.Errorf("ipvs:Client.recv: Unknown nlmsg.type %x\n", msg.Nl.Type)
-            }
-
-            if msg.Nl.Flags & syscall.NLM_F_MULTI == 0 {
-                break
-            }
+        if ret, _, err := syscall.Recvfrom(client.nlSock.Fd, buf, syscall.MSG_TRUNC); err != nil {
+            return err
+        } else if ret > len(buf) {
+            return nlgo.NLE_MSG_TRUNC
+        } else {
+            buf = buf[:ret]
         }
 
-        return nil
+        if nl_msgs, err := syscall.ParseNetlinkMessage(buf); err != nil {
+            return err
+        } else {
+            log.Printf("ipvs:Client.recv: %d messages\n", len(nl_msgs))
+            client.recvQueue = nl_msgs
+        }
+    }
+
+    for len(client.recvQueue) > 0 {
+        nl_msg := client.recvQueue[0]; client.recvQueue = client.recvQueue[1:]
+
+        msg.Nl = nl_msg.Header
+        data := nl_msg.Data
+
+        // TODO: check msg.Header.Pid, msg.Header.Seq?
+        log.Printf("ipvs:Client.recv: msg.Nl = %+v\n", msg.Nl)
+
+        switch msg.Nl.Type {
+        case syscall.NLMSG_ERROR:
+            // TODO: check length
+            msg.NlErr = *(*syscall.NlMsgerr)(unsafe.Pointer(&data[0]))
+
+            log.Printf("ipvs:Client.recv: msg.NlErr = %+v\n", msg.NlErr)
+
+            if msg.NlErr.Error != 0 {
+                return nlgo.NlError(msg.NlErr.Error)
+            } else {
+                // ack
+            }
+
+        case syscall.NLMSG_NOOP:
+            log.Printf("ipvs:Client.recv: Noop")
+            continue
+
+        case syscall.NLMSG_DONE:
+            log.Printf("ipvs:Client.recv: Done")
+            return nil
+
+        case client.genlFamily:
+            msg.Genl = *(*nlgo.GenlMsghdr)(unsafe.Pointer(&data[0]))
+            msg.GenlData = data[nlgo.GENL_HDRLEN:]
+
+            log.Printf("ipvs:Client.recv: msg.Genl = %+v\n", msg.Genl)
+
+        default:
+            return fmt.Errorf("ipvs:Client.recv: Unknown nlmsg.type %x\n", msg.Nl.Type)
+        }
+
+        if msg.Nl.Flags & syscall.NLM_F_MULTI != 0 {
+            log.Printf("ipvs:Client.recv: continue multipart")
+        } else {
+            break
+        }
+    }
+
+    return nil
+}
+
+func (msg *Message) parse (genlFamily uint16, genlCmd uint8, genlPolicy nlgo.MapPolicy) (nlgo.AttrList, error) {
+    if msg.Nl.Type != genlFamily || msg.Genl.Cmd != genlCmd {
+        return nlgo.AttrList{}, fmt.Errorf("ipvs:Client.read: Unsupported response: %+v", msg)
+    }
+
+    if attrs, err := genlPolicy.Parse(msg.GenlData); err != nil {
+        log.Printf("ipvs:Message.parse: %s\n%s", err, hex.Dump(msg.GenlData))
+        return attrs, err
+    } else {
+        log.Printf("ipvs:Client.read: genlAttrs = %s\n", genlPolicy.Dump(attrs))
+
+        return attrs, nil
     }
 }
 
 /* Execute a command with no return value */
-func (client *Client) exec (cmd uint8) error {
+func (client *Client) execFlags (cmd uint8, flags uint16) error {
     var msg Message
 
-    if err := client.send(cmd, 0); err != nil {
+    if err := client.send(cmd, flags); err != nil {
         return err
     }
 
@@ -158,34 +172,7 @@ func (client *Client) exec (cmd uint8) error {
     return nil
 }
 
-func (client *Client) GetInfo() error {
-    var msg Message
-
-    if err := client.send(IPVS_CMD_GET_INFO, 0); err != nil {
-        return err
-    }
-
-    if err := client.recv(&msg); err != nil {
-        return err
-    }
-
-    if msg.Nl.Type != client.genlFamily || msg.Genl.Cmd != IPVS_CMD_SET_INFO {
-        fmt.Errorf("ipvs:Client.GetInfo: Unsupported response: %+v", msg)
-    }
-
-    version := msg.Attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
-    size := msg.Attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
-
-    log.Printf("ipvs:Client.GetInfo: IPVS version=%d.%d.%d, size=%d\n",
-        (version >> 16) & 0xFF,
-        (version >> 8)  & 0xFF,
-        (version >> 0)  & 0xFF,
-        size,
-    )
-
-    return nil
+func (client *Client) exec (cmd uint8) error {
+        return client.execFlags(cmd, 0)
 }
 
-func (client *Client) Flush() error {
-    return client.exec(IPVS_CMD_FLUSH)
-}
