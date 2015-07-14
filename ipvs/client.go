@@ -54,8 +54,8 @@ type Message struct {
     GenlData    []byte
 }
 
-func (client *Client) send (seq uint32, cmd uint8, flags uint16) error {
-    buf := make([]byte, syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr)
+func (client *Client) send (seq uint32, cmd uint8, flags uint16, payload []byte) error {
+    buf := make([]byte, syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr + len(payload))
 
     nl_msg := (*syscall.NlMsghdr)(unsafe.Pointer(&buf[0]))
     nl_msg.Type = client.genlFamily
@@ -67,6 +67,8 @@ func (client *Client) send (seq uint32, cmd uint8, flags uint16) error {
     genl_msg := (*nlgo.GenlMsghdr)(unsafe.Pointer(&buf[syscall.NLMSG_HDRLEN]))
     genl_msg.Cmd = cmd
     genl_msg.Version = IPVS_GENL_VERSION
+
+    copy(buf[syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr:], payload)
 
     if err := syscall.Sendto(client.nlSock.Fd, buf, 0, &client.nlSock.Peer); err != nil {
         log.Printf("ipvs:Client.send: seq=%d cmd=%v flags=%#04x: %s\n", seq, cmd, flags, err)
@@ -130,8 +132,8 @@ func (client *Client) recv (msg *Message) error {
     return nil
 }
 
-func (client *Client) request (cmd uint8, flags uint16, cb func (msg Message) error) error {
-    if err := client.send(client.nlSock.SeqNext, cmd, syscall.NLM_F_REQUEST | syscall.NLM_F_ACK | flags); err != nil {
+func (client *Client) request (cmd uint8, flags uint16, payload []byte, cb func (msg Message) error) error {
+    if err := client.send(client.nlSock.SeqNext, cmd, syscall.NLM_F_REQUEST | syscall.NLM_F_ACK | flags, payload); err != nil {
         return err
     }
 
@@ -194,7 +196,7 @@ func (client *Client) request (cmd uint8, flags uint16, cb func (msg Message) er
 
 /* Execute a command with success/error, no return messages */
 func (client *Client) exec (cmd uint8, flags uint16) error {
-    return client.request(cmd, flags, func(msg Message) error {
+    return client.request(cmd, flags, nil, func(msg Message) error {
         return fmt.Errorf("ipvs:Client.exec: Unexpected response: %+v", msg)
     })
 }

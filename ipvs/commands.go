@@ -22,7 +22,7 @@ type Service struct {
 }
 
 func (client *Client) GetInfo() error {
-    return client.request(IPVS_CMD_GET_INFO, 0, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
+    return client.request(IPVS_CMD_GET_INFO, 0, nil, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
         version := attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
         size := attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
 
@@ -44,7 +44,7 @@ func (client *Client) Flush() error {
 func (client *Client) ListServices() ([]Service, error) {
     services := make([]Service, 0)
 
-    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
+    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, nil, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
         svc_attrs := cmd_attrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
 
         //log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
@@ -85,3 +85,26 @@ func (client *Client) ListServices() ([]Service, error) {
         return services, nil
     }
 }
+
+func nlattr (typ uint16, value interface{}) nlgo.Attr {
+    return nlgo.Attr{Header: syscall.NlAttr{Type: typ}, Value: value}
+}
+
+func (client *Client) ListDests(svc Service) (error) {
+    req_attrs := nlgo.AttrList{
+        nlattr(IPVS_CMD_ATTR_SERVICE, nlgo.AttrList{
+            nlattr(IPVS_SVC_ATTR_AF, svc.Af),
+            nlattr(IPVS_SVC_ATTR_PROTOCOL, svc.Protocol),
+            nlattr(IPVS_SVC_ATTR_ADDR, ([]byte)(svc.Addr)),
+            nlattr(IPVS_SVC_ATTR_PORT, svc.Port),
+        }),
+    }
+
+    return client.request(IPVS_CMD_GET_DEST, syscall.NLM_F_DUMP, ipvs_cmd_policy.Bytes(req_attrs), client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
+        log.Printf("ipvs:Client.ListDests: cmd=%+v\n", ipvs_cmd_policy.Dump(cmd_attrs))
+
+        return nil
+    }))
+}
+
+
