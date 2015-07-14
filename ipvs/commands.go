@@ -13,6 +13,8 @@ type Service struct {
     Protocol    uint16
     Addr        net.IP
     Port        uint16
+    FwMark      uint32
+
     SchedName   string
     // Flags
     Timeout     uint32
@@ -42,20 +44,26 @@ func (client *Client) Flush() error {
 func (client *Client) ListServices() ([]Service, error) {
     services := make([]Service, 0)
 
-    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (attrs nlgo.AttrList) error {
-        svc_attrs := attrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
+    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
+        svc_attrs := cmd_attrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
 
-        log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
+        //log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
 
-        service := Service{
-            Af:         svc_attrs.Get(IPVS_SVC_ATTR_AF).(uint16),
-            Protocol:   svc_attrs.Get(IPVS_SVC_ATTR_PROTOCOL).(uint16),
-            Port:       svc_attrs.Get(IPVS_SVC_ATTR_PORT).(uint16),
-            SchedName:  svc_attrs.Get(IPVS_SVC_ATTR_SCHED_NAME).(string),
-            Timeout:    svc_attrs.Get(IPVS_SVC_ATTR_TIMEOUT).(uint32),
-            Netmask:    svc_attrs.Get(IPVS_SVC_ATTR_NETMASK).(uint32),
+        service := Service{}
+        var service_addr []byte
+
+        for _, attr := range svc_attrs {
+            switch attr.Field() {
+            case IPVS_SVC_ATTR_AF:          service.Af = attr.Value.(uint16)
+            case IPVS_SVC_ATTR_PROTOCOL:    service.Protocol = attr.Value.(uint16)
+            case IPVS_SVC_ATTR_ADDR:        service_addr = svc_attrs.Get(IPVS_SVC_ATTR_ADDR).([]byte)
+            case IPVS_SVC_ATTR_PORT:        service.Port = attr.Value.(uint16)
+            case IPVS_SVC_ATTR_FWMARK:      service.FwMark = attr.Value.(uint32)
+            case IPVS_SVC_ATTR_SCHED_NAME:  service.SchedName = attr.Value.(string)
+            case IPVS_SVC_ATTR_TIMEOUT:     service.Timeout = attr.Value.(uint32)
+            case IPVS_SVC_ATTR_NETMASK:     service.Netmask = attr.Value.(uint32)
+            }
         }
-        service_addr := svc_attrs.Get(IPVS_SVC_ATTR_ADDR).([]byte)
 
         switch service.Af {
         case syscall.AF_INET:
