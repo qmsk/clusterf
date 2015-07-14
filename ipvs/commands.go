@@ -1,66 +1,79 @@
 package ipvs
 
 import (
+    "fmt"
     "log"
+    "net"
+    "github.com/hkwi/nlgo"
     "syscall"
 )
 
+type Service struct {
+    Af          uint16
+    Protocol    uint16
+    Addr        net.IP
+    Port        uint16
+    SchedName   string
+    // Flags
+    Timeout     uint32
+    Netmask     uint32
+}
+
 func (client *Client) GetInfo() error {
-    if err := client.send(IPVS_CMD_GET_INFO, 0); err != nil {
-        return err
-    }
+    return client.request(IPVS_CMD_GET_INFO, 0, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
+        version := attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
+        size := attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
 
-    for {
-        var msg Message
+        log.Printf("ipvs:Client.GetInfo: IPVS version=%d.%d.%d, size=%d\n",
+            (version >> 16) & 0xFF,
+            (version >> 8)  & 0xFF,
+            (version >> 0)  & 0xFF,
+            size,
+        )
 
-        if err := client.recv(&msg); err != nil {
-            return err
-        } else if msg.Nl.Type == syscall.NLMSG_ERROR {
-            log.Printf("ipvs:Client.GetInfo: ACK\n")
-            return nil
-        }
-
-        if attrs, err := msg.parse(client.genlFamily, IPVS_CMD_SET_INFO, ipvs_info_policy); err != nil {
-            return err
-        } else {
-            version := attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
-            size := attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
-
-            log.Printf("ipvs:Client.GetInfo: IPVS version=%d.%d.%d, size=%d\n",
-                (version >> 16) & 0xFF,
-                (version >> 8)  & 0xFF,
-                (version >> 0)  & 0xFF,
-                size,
-            )
-        }
-    }
-
-    return nil
+        return nil
+    }))
 }
 
 func (client *Client) Flush() error {
-    return client.exec(IPVS_CMD_FLUSH)
+    return client.exec(IPVS_CMD_FLUSH, 0)
 }
 
-func (client *Client) ListServices() error {
-    if err := client.send(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP); err != nil {
-        return err
-    }
+func (client *Client) ListServices() ([]Service, error) {
+    services := make([]Service, 0)
 
-    for {
-        var msg Message
+    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (attrs nlgo.AttrList) error {
+        svc_attrs := attrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
 
-        if err := client.recv(&msg); err != nil {
-            return err
-        } else if msg.Nl.Type == syscall.NLMSG_DONE {
-            return nil
+        log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
+
+        service := Service{
+            Af:         svc_attrs.Get(IPVS_SVC_ATTR_AF).(uint16),
+            Protocol:   svc_attrs.Get(IPVS_SVC_ATTR_PROTOCOL).(uint16),
+            Port:       svc_attrs.Get(IPVS_SVC_ATTR_PORT).(uint16),
+            SchedName:  svc_attrs.Get(IPVS_SVC_ATTR_SCHED_NAME).(string),
+            Timeout:    svc_attrs.Get(IPVS_SVC_ATTR_TIMEOUT).(uint32),
+            Netmask:    svc_attrs.Get(IPVS_SVC_ATTR_NETMASK).(uint32),
+        }
+        service_addr := svc_attrs.Get(IPVS_SVC_ATTR_ADDR).([]byte)
+
+        switch service.Af {
+        case syscall.AF_INET:
+            service.Addr = (net.IP)(service_addr[:4])
+
+        case syscall.AF_INET6:
+            service.Addr = (net.IP)(service_addr[:16])
+
+        default:
+            return fmt.Errorf("ipvs:Client.ListServices: unknown service Af=%d Addr=%v", service.Af, service_addr)
         }
 
-        if attrs, err := msg.parse(client.genlFamily, IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy); err != nil {
-            return err
-        } else {
-            log.Printf("ipvs:Client.ListServices: %v\n", ipvs_cmd_policy.Dump(attrs))
-        }
+        services = append(services, service)
+
+        return nil
+    })); err != nil {
+        return services, err
+    } else {
+        return services, nil
     }
-    return nil
 }
