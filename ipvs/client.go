@@ -47,37 +47,50 @@ func (client *Client) init () error {
     return nil
 }
 
-type Message struct {
-    Nl          syscall.NlMsghdr
-    NlErr       syscall.NlMsgerr
-    Genl        nlgo.GenlMsghdr
-    GenlData    []byte
+type Request struct {
+    Cmd     uint8
+    Flags   uint16
+    Policy  nlgo.MapPolicy
+    Attrs   nlgo.AttrList
 }
 
-func (client *Client) send (seq uint32, cmd uint8, flags uint16, payload []byte) error {
+func (client *Client) send (request Request, seq uint32, flags uint16) error {
+    var payload []byte
+
+    if request.Attrs != nil {
+        payload = request.Policy.Bytes(request.Attrs)
+    }
+
     buf := make([]byte, syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr + len(payload))
 
     nl_msg := (*syscall.NlMsghdr)(unsafe.Pointer(&buf[0]))
     nl_msg.Type = client.genlFamily
-    nl_msg.Flags = flags
+    nl_msg.Flags = request.Flags | flags
     nl_msg.Len = (uint32)(cap(buf))
     nl_msg.Seq = seq
     nl_msg.Pid = client.nlSock.Local.Pid
 
     genl_msg := (*nlgo.GenlMsghdr)(unsafe.Pointer(&buf[syscall.NLMSG_HDRLEN]))
-    genl_msg.Cmd = cmd
+    genl_msg.Cmd = request.Cmd
     genl_msg.Version = IPVS_GENL_VERSION
 
     copy(buf[syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr:], payload)
 
     if err := syscall.Sendto(client.nlSock.Fd, buf, 0, &client.nlSock.Peer); err != nil {
-        log.Printf("ipvs:Client.send: seq=%d cmd=%v flags=%#04x: %s\n", seq, cmd, flags, err)
+        log.Printf("ipvs:Client.send: seq=%d flags=%#04x cmd=%v: %s\n", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, err)
         return err
     } else {
-        log.Printf("ipvs:Client.send: seq=%d cmd=%v flags=%#04x\n%s", seq, cmd, flags, hex.Dump(buf))
+        log.Printf("ipvs:Client.send: seq=%d flags=%#04x cmd=%v\n%s", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, hex.Dump(buf))
     }
 
     return nil
+}
+
+type Message struct {
+    Nl          syscall.NlMsghdr
+    NlErr       syscall.NlMsgerr
+    Genl        nlgo.GenlMsghdr
+    GenlData    []byte
 }
 
 /* Receive and parse a genl message */
@@ -111,7 +124,7 @@ func (client *Client) recv (msg *Message) error {
 
     switch msg.Nl.Type {
     case syscall.NLMSG_ERROR:
-        if len(data) != syscall.SizeofNlMsgerr {
+        if len(data) < syscall.SizeofNlMsgerr {
             return nlgo.NLE_RANGE
         }
 
@@ -132,12 +145,13 @@ func (client *Client) recv (msg *Message) error {
     return nil
 }
 
-func (client *Client) request (cmd uint8, flags uint16, payload []byte, cb func (msg Message) error) error {
-    if err := client.send(client.nlSock.SeqNext, cmd, syscall.NLM_F_REQUEST | syscall.NLM_F_ACK | flags, payload); err != nil {
+func (client *Client) request (request Request, handler func (msg Message) error) error {
+    seq := client.nlSock.SeqNext
+
+    if err := client.send(request, seq, syscall.NLM_F_REQUEST | syscall.NLM_F_ACK); err != nil {
         return err
     }
 
-    seq := client.nlSock.SeqNext
     client.nlSock.SeqNext++
 
     // recv
@@ -169,15 +183,17 @@ func (client *Client) request (cmd uint8, flags uint16, payload []byte, cb func 
             return nlgo.NLE_MSG_OVERFLOW
 
         case syscall.NLMSG_ERROR:
-            if msg.NlErr.Error != 0 {
+            if msg.NlErr.Error > 0 {
                 return nlgo.NlError(msg.NlErr.Error)
+            } else if msg.NlErr.Error < 0 {
+                return syscall.Errno(-msg.NlErr.Error)
             } else {
                 // ack
                 return nil
             }
 
         default:
-            if err := cb(msg); err != nil {
+            if err := handler(msg); err != nil {
                 return err
             }
         }
@@ -195,8 +211,8 @@ func (client *Client) request (cmd uint8, flags uint16, payload []byte, cb func 
 }
 
 /* Execute a command with success/error, no return messages */
-func (client *Client) exec (cmd uint8, flags uint16) error {
-    return client.request(cmd, flags, nil, func(msg Message) error {
+func (client *Client) exec (request Request) error {
+    return client.request(request, func(msg Message) error {
         return fmt.Errorf("ipvs:Client.exec: Unexpected response: %+v", msg)
     })
 }
@@ -215,4 +231,9 @@ func (client *Client) queryParser (cmd uint8, policy nlgo.MapPolicy, cb func(att
             return cb(attrs)
         }
     }
+}
+
+/* Helper to build an nlgo.Attr */
+func nlattr (typ uint16, value interface{}) nlgo.Attr {
+    return nlgo.Attr{Header: syscall.NlAttr{Type: typ}, Value: value}
 }
