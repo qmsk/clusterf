@@ -9,20 +9,71 @@ import (
 )
 
 type Service struct {
+    // id
     Af          uint16
     Protocol    uint16
     Addr        net.IP
     Port        uint16
     FwMark      uint32
 
+    // params
     SchedName   string
     // Flags
     Timeout     uint32
     Netmask     uint32
 }
 
+func (self Service) attrs(full bool) nlgo.AttrList {
+    var attrs nlgo.AttrList
+
+    if self.FwMark != 0 {
+        attrs = append(attrs,
+            nlattr(IPVS_SVC_ATTR_AF, self.Af),
+            nlattr(IPVS_SVC_ATTR_FWMARK, self.FwMark),
+        )
+    } else if self.Protocol != 0 && self.Addr != nil && self.Port != 0 {
+        attrs = append(attrs,
+            nlattr(IPVS_SVC_ATTR_AF, self.Af),
+            nlattr(IPVS_SVC_ATTR_PROTOCOL, self.Protocol),
+            nlattr(IPVS_SVC_ATTR_ADDR, ([]byte)(self.Addr)),
+            nlattr(IPVS_SVC_ATTR_PORT, self.Port),
+        )
+    } else {
+        panic("Incomplete service id fields")
+    }
+
+    if full {
+        attrs = append(attrs,
+            nlattr(IPVS_SVC_ATTR_SCHED_NAME,    self.SchedName),
+            nlattr(IPVS_SVC_ATTR_TIMEOUT,       self.Timeout),
+            nlattr(IPVS_SVC_ATTR_NETMASK,       self.Netmask),
+        )
+    }
+
+    return attrs
+}
+
+type cmd struct {
+    serviceId   *Service
+    serviceFull *Service
+}
+
+func (self cmd) attrs() nlgo.AttrList {
+    attrs := nlgo.AttrList{}
+
+    if self.serviceFull != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceFull.attrs(true)))
+    }
+
+    if self.serviceId != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceId.attrs(false)))
+    }
+
+    return attrs
+}
+
 func (client *Client) GetInfo() error {
-    return client.request(IPVS_CMD_GET_INFO, 0, nil, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
+    return client.request(Request{Cmd: IPVS_CMD_GET_INFO}, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
         version := attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
         size := attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
 
@@ -38,13 +89,41 @@ func (client *Client) GetInfo() error {
 }
 
 func (client *Client) Flush() error {
-    return client.exec(IPVS_CMD_FLUSH, 0)
+    return client.exec(Request{Cmd: IPVS_CMD_FLUSH})
+}
+
+func (client *Client) NewService(service Service) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_NEW_SERVICE,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceFull: &service}.attrs(),
+    })
+}
+
+func (client *Client) SetService(service Service) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_SET_SERVICE,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceFull: &service}.attrs(),
+    })
+}
+
+func (client *Client) DelService(service Service) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_DEL_SERVICE,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceId: &service}.attrs(),
+    })
 }
 
 func (client *Client) ListServices() ([]Service, error) {
     services := make([]Service, 0)
+    request := Request{
+        Cmd:    IPVS_CMD_GET_SERVICE,
+        Flags:  syscall.NLM_F_DUMP,
+    }
 
-    if err := client.request(IPVS_CMD_GET_SERVICE, syscall.NLM_F_DUMP, nil, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
+    if err := client.request(request, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
         svc_attrs := cmd_attrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
 
         //log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
@@ -86,21 +165,15 @@ func (client *Client) ListServices() ([]Service, error) {
     }
 }
 
-func nlattr (typ uint16, value interface{}) nlgo.Attr {
-    return nlgo.Attr{Header: syscall.NlAttr{Type: typ}, Value: value}
-}
-
-func (client *Client) ListDests(svc Service) (error) {
-    req_attrs := nlgo.AttrList{
-        nlattr(IPVS_CMD_ATTR_SERVICE, nlgo.AttrList{
-            nlattr(IPVS_SVC_ATTR_AF, svc.Af),
-            nlattr(IPVS_SVC_ATTR_PROTOCOL, svc.Protocol),
-            nlattr(IPVS_SVC_ATTR_ADDR, ([]byte)(svc.Addr)),
-            nlattr(IPVS_SVC_ATTR_PORT, svc.Port),
-        }),
+func (client *Client) ListDests(service Service) (error) {
+    request := Request{
+        Cmd:    IPVS_CMD_GET_DEST,
+        Flags:  syscall.NLM_F_DUMP,
+        Policy: ipvs_cmd_policy,
+        Attrs:  cmd{serviceId: &service}.attrs(),
     }
 
-    return client.request(IPVS_CMD_GET_DEST, syscall.NLM_F_DUMP, ipvs_cmd_policy.Bytes(req_attrs), client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
+    return client.request(request, client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
         log.Printf("ipvs:Client.ListDests: cmd=%+v\n", ipvs_cmd_policy.Dump(cmd_attrs))
 
         return nil
