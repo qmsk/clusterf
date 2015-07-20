@@ -15,6 +15,46 @@ type IPVSFlags struct {
 }
 
 const (
+	IP_VS_SVC_F_PERSISTENT	= 0x0001      /* persistent port */
+	IP_VS_SVC_F_HASHED	= 0x0002      /* hashed entry */
+	IP_VS_SVC_F_ONEPACKET	= 0x0004      /* one-packet scheduling */
+	IP_VS_SVC_F_SCHED1	= 0x0008      /* scheduler flag 1 */
+	IP_VS_SVC_F_SCHED2	= 0x0010      /* scheduler flag 2 */
+	IP_VS_SVC_F_SCHED3	= 0x0020      /* scheduler flag 3 */
+
+	IP_VS_SVC_F_SCHED_SH_FALLBACK	= IP_VS_SVC_F_SCHED1 /* SH fallback */
+	IP_VS_SVC_F_SCHED_SH_PORT	= IP_VS_SVC_F_SCHED2 /* SH use port */
+)
+
+const (
+	IP_VS_STATE_NONE	= 0x0000      /* daemon is stopped */
+	IP_VS_STATE_MASTER	= 0x0001      /* started as master */
+	IP_VS_STATE_BACKUP	= 0x0002      /* started as backup */
+)
+
+const (
+	IP_VS_CONN_F_FWD_MASK	= 0x0007      /* mask for the fwd methods */
+	IP_VS_CONN_F_MASQ	= 0x0000      /* masquerading/NAT */
+	IP_VS_CONN_F_LOCALNODE	= 0x0001      /* local node */
+	IP_VS_CONN_F_TUNNEL	= 0x0002      /* tunneling */
+	IP_VS_CONN_F_DROUTE	= 0x0003      /* direct routing */
+	IP_VS_CONN_F_BYPASS	= 0x0004      /* cache bypass */
+
+	IP_VS_CONN_F_SYNC	= 0x0020      /* entry created by sync */
+	IP_VS_CONN_F_HASHED	= 0x0040      /* hashed entry */
+	IP_VS_CONN_F_NOOUTPUT	= 0x0080      /* no output packets */
+	IP_VS_CONN_F_INACTIVE	= 0x0100      /* not established */
+
+	IP_VS_CONN_F_SEQ_MASK	= 0x0600      /* in/out sequence mask */
+	IP_VS_CONN_F_OUT_SEQ	= 0x0200      /* must do output seq adjust */
+	IP_VS_CONN_F_IN_SEQ	= 0x0400      /* must do input seq adjust */
+
+	IP_VS_CONN_F_NO_CPORT	= 0x0800      /* no client port set yet */
+	IP_VS_CONN_F_TEMPLATE	= 0x1000      /* template, not connection */
+	IP_VS_CONN_F_ONE_PACKET	= 0x2000      /* forward only one packet */
+)
+
+const (
     IPVS_CMD_UNSPEC = iota
 
     IPVS_CMD_NEW_SERVICE       /* add service */
