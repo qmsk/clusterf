@@ -22,6 +22,10 @@ type Etcd struct {
     syncIndex   uint64
 }
 
+func (self *Etcd) String() string {
+    return fmt.Sprintf("%s%s", self.config.Machines, self.config.Prefix)
+}
+
 type ServiceFrontend struct {
     IPv4    net.IP  `json:"ipv4,omitempty"`
     TCP     uint16  `json:"tcp,omitempty"`
@@ -37,6 +41,22 @@ type Service struct {
 
     Frontend    ServiceFrontend
     Servers     map[string]ServiceServer
+}
+
+func (self *ServiceFrontend) Load (node *etcd.Node) error {
+    if err := json.Unmarshal([]byte(node.Value), &self); err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (self *ServiceServer) Load (node *etcd.Node) error {
+    if err := json.Unmarshal([]byte(node.Value), &self); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 /*
@@ -95,12 +115,12 @@ func (self *Etcd) Sync(handle func(service Service)) error {
             for _, serviceNode := range node.Nodes {
                 service := self.SyncService(serviceNode)
 
-                log.Printf("server:etcd.Sync: Service %+v\n", service)
+                log.Printf("server:etcd.Sync %s: Service %+v\n", node.Key, service)
 
                 handle(service)
             }
         } else {
-            log.Printf("server:etcd.Sync: Ignore unknown node: %s\n", node.Key)
+            log.Printf("server:etcd.Sync %s: Ignore unknown node\n", node.Key)
         }
     }
 
@@ -118,10 +138,10 @@ func (self *Etcd) SyncService(serviceNode *etcd.Node) Service {
 
         if name == "frontend" {
             if err := service.Frontend.Load(node); err != nil {
-                log.Printf("server:etcd.SyncService %s: Frontend.Load: %s\n", service.Name, err)
+                log.Printf("server:etcd.SyncService %s: Frontend.Load: %s\n", node.Key, err)
                 continue
             } else {
-                log.Printf("server:etcd.SyncService %s: Frontend:%+v\n", service.Name, service.Frontend)
+                log.Printf("server:etcd.SyncService %s: Frontend:%+v\n", node.Key, service.Frontend)
             }
         } else if name == "servers" && node.Dir {
             for _, serverNode := range node.Nodes {
@@ -129,34 +149,18 @@ func (self *Etcd) SyncService(serviceNode *etcd.Node) Service {
                 serverName := path.Base(serverNode.Key)
 
                 if err := server.Load(serverNode); err != nil {
-                    log.Printf("server:etcd.SyncService %s: Server.Load %s: %s\n", service.Name, serverName, err)
+                    log.Printf("server:etcd.SyncService %s: Server.Load %s: %s\n", serverNode.Key, serverName, err)
                     continue
                 } else {
-                    log.Printf("server:etcd.SyncService %s: Server %s:%+v\n", service.Name, serverName, server)
+                    log.Printf("server:etcd.SyncService %s: Server %s:%+v\n", serverNode.Key, serverName, server)
 
                     service.Servers[serverName] = server
                 }
             }
         } else {
-            log.Printf("server:etcd.SyncService %s: Ignore unknown node: %s\n", service.Name, node.Key)
+            log.Printf("server:etcd.SyncService %s: Ignore unknown node\n", node.Key)
         }
     }
 
     return service
-}
-
-func (self *ServiceFrontend) Load (node *etcd.Node) error {
-    if err := json.Unmarshal([]byte(node.Value), &self); err != nil {
-        return err
-    }
-
-    return nil
-}
-
-func (self *ServiceServer) Load (node *etcd.Node) error {
-    if err := json.Unmarshal([]byte(node.Value), &self); err != nil {
-        return err
-    }
-
-    return nil
 }
