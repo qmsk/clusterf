@@ -47,6 +47,20 @@ func unpack(buf []byte, out interface{}) error {
     return binary.Read(bytes.NewReader(buf), binary.BigEndian, out)
 }
 
+func unpackAddr (af uint16, buf []byte) (net.IP, error) {
+    // XXX: validate length?
+    switch af {
+    case syscall.AF_INET:
+        return (net.IP)(buf[:4]), nil
+
+    case syscall.AF_INET6:
+        return (net.IP)(buf[:16]), nil
+
+    default:
+        return nil, fmt.Errorf("ipvs: unknown af=%d addr=%v", af, buf)
+    }
+}
+
 func pack (in interface{}) []byte {
     var buf bytes.Buffer
 
@@ -69,6 +83,9 @@ func packAddr (af uint16, addr net.IP) []byte {
 func htons (value uint16) uint16 {
     return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8)
 }
+func ntohs (value uint16) uint16 {
+    return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8)
+}
 
 func (self *Service) unpack(attrs nlgo.AttrList) error {
     var addr []byte
@@ -79,7 +96,7 @@ func (self *Service) unpack(attrs nlgo.AttrList) error {
         case IPVS_SVC_ATTR_AF:          self.Af = attr.Value.(uint16)
         case IPVS_SVC_ATTR_PROTOCOL:    self.Protocol = attr.Value.(uint16)
         case IPVS_SVC_ATTR_ADDR:        addr = attr.Value.([]byte)
-        case IPVS_SVC_ATTR_PORT:        self.Port = attr.Value.(uint16)
+        case IPVS_SVC_ATTR_PORT:        self.Port = ntohs(attr.Value.(uint16))
         case IPVS_SVC_ATTR_FWMARK:      self.FwMark = attr.Value.(uint32)
         case IPVS_SVC_ATTR_SCHED_NAME:  self.SchedName = attr.Value.(string)
         case IPVS_SVC_ATTR_FLAGS:       flags = attr.Value.([]byte)
@@ -88,15 +105,10 @@ func (self *Service) unpack(attrs nlgo.AttrList) error {
         }
     }
 
-    switch self.Af {
-    case syscall.AF_INET:
-        self.Addr = (net.IP)(addr[:4])
-
-    case syscall.AF_INET6:
-        self.Addr = (net.IP)(addr[:16])
-
-    default:
-        return fmt.Errorf("ipvs:Client.ListServices: unknown service AF=%d ADDR=%v", self.Af, addr)
+    if addrIP, err := unpackAddr(self.Af, addr); err != nil {
+        return fmt.Errorf("ipvs:Service.unpack: addr: %s", err)
+    } else {
+        self.Addr = addrIP
     }
 
     if err := unpack(flags, &self.Flags); err != nil {
@@ -121,7 +133,7 @@ func (self *Service) attrs(full bool) nlgo.AttrList {
             nlattr(IPVS_SVC_ATTR_AF, self.Af),
             nlattr(IPVS_SVC_ATTR_PROTOCOL, self.Protocol),
             nlattr(IPVS_SVC_ATTR_ADDR, addr),
-            nlattr(IPVS_SVC_ATTR_PORT, htons(self.Port)),       // network-order when sending
+            nlattr(IPVS_SVC_ATTR_PORT, htons(self.Port)),
         )
     } else {
         panic("Incomplete service id fields")
@@ -137,6 +149,32 @@ func (self *Service) attrs(full bool) nlgo.AttrList {
     }
 
     return attrs
+}
+
+func (self *Dest) unpack(service Service, attrs nlgo.AttrList) error {
+    var addr []byte
+
+    for _, attr := range attrs {
+        switch attr.Field() {
+        case IPVS_DEST_ATTR_ADDR:       addr = attr.Value.([]byte)
+        case IPVS_DEST_ATTR_PORT:       self.Port = ntohs(attr.Value.(uint16))
+        case IPVS_DEST_ATTR_FWD_METHOD: self.FwdMethod = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_WEIGHT:     self.Weight = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_U_THRESH:   self.UThresh = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_L_THRESH:   self.LThresh = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_ACTIVE_CONNS:   self.ActiveConns = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_INACT_CONNS:    self.InactConns = attr.Value.(uint32)
+        case IPVS_DEST_ATTR_PERSIST_CONNS:  self.PersistConns = attr.Value.(uint32)
+        }
+    }
+
+    if addrIP, err := unpackAddr(service.Af, addr); err != nil {
+        return fmt.Errorf("ipvs:Dest.unpack: addr: %s", err)
+    } else {
+        self.Addr = addrIP
+    }
+
+    return nil
 }
 
 func (self *Dest) attrs(service *Service, full bool) nlgo.AttrList {
@@ -283,7 +321,8 @@ func (client *Client) DelDest(service Service, dest Dest) error {
     })
 }
 
-func (client *Client) ListDests(service Service) (error) {
+func (client *Client) ListDests(service Service) ([]Dest, error) {
+    dests := make([]Dest, 0)
     request := Request{
         Cmd:    IPVS_CMD_GET_DEST,
         Flags:  syscall.NLM_F_DUMP,
@@ -291,11 +330,25 @@ func (client *Client) ListDests(service Service) (error) {
         Attrs:  cmd{serviceId: &service}.attrs(),
     }
 
-    return client.request(request, client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmd_attrs nlgo.AttrList) error {
-        log.Printf("ipvs:Client.ListDests: cmd=%+v\n", ipvs_cmd_policy.Dump(cmd_attrs))
+    if err := client.request(request, client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmdAttrs nlgo.AttrList) error {
+        destAttrs := cmdAttrs.Get(IPVS_CMD_ATTR_DEST).(nlgo.AttrList)
+
+        log.Printf("ipvs:Client.ListDests: dest=%+v\n", ipvs_dest_policy.Dump(destAttrs))
+
+        dest := Dest{}
+
+        if err := dest.unpack(service, destAttrs); err != nil {
+            return err
+        } else {
+            dests = append(dests, dest)
+        }
 
         return nil
-    }))
+    })); err != nil {
+        return nil, err
+    } else {
+        return dests, nil
+    }
 }
 
 
