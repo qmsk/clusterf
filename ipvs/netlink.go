@@ -9,6 +9,11 @@ const (
     IPVS_GENL_VERSION   = 0x1
 )
 
+type IPVSFlags struct {
+    Flags   uint32
+    Mask    uint32
+}
+
 const (
     IPVS_CMD_UNSPEC = iota
 
