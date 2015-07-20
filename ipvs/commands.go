@@ -4,7 +4,6 @@ import (
     "encoding/binary"
     "bytes"
     "fmt"
-    "log"
     "net"
     "github.com/hkwi/nlgo"
     "syscall"
@@ -41,6 +40,22 @@ type Dest struct {
     ActiveConns     uint32
     InactConns      uint32
     PersistConns    uint32
+}
+
+/* Packed version number */
+type IPVSVersion uint32
+
+func (version IPVSVersion) String() string {
+    return fmt.Sprintf("%d.%d.%d",
+        (version >> 16) & 0xFF,
+        (version >> 8)  & 0xFF,
+        (version >> 0)  & 0xFF,
+    )
+}
+
+type Info struct {
+    Version     IPVSVersion
+    ConnTabSize uint32
 }
 
 func unpack(buf []byte, out interface{}) error {
@@ -225,26 +240,6 @@ func (self cmd) attrs() nlgo.AttrList {
     return attrs
 }
 
-func (client *Client) GetInfo() error {
-    return client.request(Request{Cmd: IPVS_CMD_GET_INFO}, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
-        version := attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32)
-        size := attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
-
-        log.Printf("ipvs:Client.GetInfo: IPVS version=%d.%d.%d, size=%d\n",
-            (version >> 16) & 0xFF,
-            (version >> 8)  & 0xFF,
-            (version >> 0)  & 0xFF,
-            size,
-        )
-
-        return nil
-    }))
-}
-
-func (client *Client) Flush() error {
-    return client.exec(Request{Cmd: IPVS_CMD_FLUSH})
-}
-
 func (client *Client) NewService(service Service) error {
     return client.exec(Request{
         Cmd:        IPVS_CMD_NEW_SERVICE,
@@ -278,8 +273,6 @@ func (client *Client) ListServices() ([]Service, error) {
 
     if err := client.request(request, client.queryParser(IPVS_CMD_NEW_SERVICE, ipvs_cmd_policy, func (cmdAttrs nlgo.AttrList) error {
         svcAttrs := cmdAttrs.Get(IPVS_CMD_ATTR_SERVICE).(nlgo.AttrList)
-
-        //log.Printf("ipvs:Client.ListServices: svc=%+v\n", ipvs_service_policy.Dump(svc_attrs))
 
         service := Service{}
 
@@ -333,8 +326,6 @@ func (client *Client) ListDests(service Service) ([]Dest, error) {
     if err := client.request(request, client.queryParser(IPVS_CMD_NEW_DEST, ipvs_cmd_policy, func (cmdAttrs nlgo.AttrList) error {
         destAttrs := cmdAttrs.Get(IPVS_CMD_ATTR_DEST).(nlgo.AttrList)
 
-        log.Printf("ipvs:Client.ListDests: dest=%+v\n", ipvs_dest_policy.Dump(destAttrs))
-
         dest := Dest{}
 
         if err := dest.unpack(service, destAttrs); err != nil {
@@ -351,4 +342,21 @@ func (client *Client) ListDests(service Service) ([]Dest, error) {
     }
 }
 
+func (client *Client) GetInfo() (Info, error) {
+    var info Info
 
+    if err := client.request(Request{Cmd: IPVS_CMD_GET_INFO}, client.queryParser(IPVS_CMD_SET_INFO, ipvs_info_policy, func (attrs nlgo.AttrList) error {
+        info.Version = (IPVSVersion)(attrs.Get(IPVS_INFO_ATTR_VERSION).(uint32))
+        info.ConnTabSize = attrs.Get(IPVS_INFO_ATTR_CONN_TAB_SIZE).(uint32)
+
+        return nil
+    })); err != nil {
+        return info, err
+    } else {
+        return info, nil
+    }
+}
+
+func (client *Client) Flush() error {
+    return client.exec(Request{Cmd: IPVS_CMD_FLUSH})
+}

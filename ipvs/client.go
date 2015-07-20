@@ -3,8 +3,10 @@ package ipvs
 import (
     "encoding/hex"
     "fmt"
+    "io/ioutil"
     "log"
     "github.com/hkwi/nlgo"
+    "os"
     "syscall"
     "unsafe"
 )
@@ -14,11 +16,14 @@ type Client struct {
     genlFamily      uint16
     recvSize        uint
     recvQueue       []syscall.NetlinkMessage
+
+    logDebug        *log.Logger
 }
 
 func Open() (*Client, error) {
     client := &Client{
         recvSize:   (uint)(syscall.Getpagesize()),
+        logDebug:   log.New(ioutil.Discard, "DEBUG ipvs:", 0),
     }
 
     if err := client.init(); err != nil {
@@ -32,19 +37,24 @@ func (client *Client) init () error {
     client.nlSock = nlgo.NlSocketAlloc()
 
     if err := nlgo.GenlConnect(client.nlSock); err != nil {
-        log.Println("GenlConnect: %v\n", err)
-        return err
+        return fmt.Errorf("ipvs:GenlConnect: %v", err)
     }
 
     if genlFamily, err := nlgo.GenlCtrlResolve(client.nlSock, IPVS_GENL_NAME); err != nil {
-        log.Printf("GenlCtrlResolve: %v\n", err)
-        return err
+        return fmt.Errorf("ipvs:GenlCtrlResolve: %v", err)
     } else {
-        log.Printf("GenlCtrlResolve %s: %v", IPVS_GENL_NAME, genlFamily)
+        client.logDebug.Printf("GenlCtrlResolve %s: %v", IPVS_GENL_NAME, genlFamily)
         client.genlFamily = genlFamily
     }
 
     return nil
+}
+
+/*
+ * Output debugging messages.
+ */
+func (client *Client) SetDebug() {
+    client.logDebug = log.New(os.Stderr, "DEBUG ipvs:", 0)
 }
 
 type Request struct {
@@ -77,10 +87,9 @@ func (client *Client) send (request Request, seq uint32, flags uint16) error {
     copy(buf[syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr:], payload)
 
     if err := syscall.Sendto(client.nlSock.Fd, buf, 0, &client.nlSock.Peer); err != nil {
-        log.Printf("ipvs:Client.send: seq=%d flags=%#04x cmd=%v: %s\n", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, err)
-        return err
+        return fmt.Errorf("ipvs:Client.send: seq=%d flags=%#04x cmd=%v: %s\n", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, err)
     } else {
-        log.Printf("ipvs:Client.send: seq=%d flags=%#04x cmd=%v\n%s", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, hex.Dump(buf))
+        client.logDebug.Printf("Client.send: seq=%d flags=%#04x cmd=%v\n%s", nl_msg.Seq, nl_msg.Flags, genl_msg.Cmd, hex.Dump(buf))
     }
 
     return nil
@@ -109,7 +118,7 @@ func (client *Client) recv (msg *Message) error {
         if nl_msgs, err := syscall.ParseNetlinkMessage(buf); err != nil {
             return err
         } else {
-            log.Printf("ipvs:Client.recv: %d messages\n%s", len(nl_msgs), hex.Dump(buf))
+            client.logDebug.Printf("Client.recv: %d messages\n%s", len(nl_msgs), hex.Dump(buf))
             client.recvQueue = nl_msgs
         }
     }
@@ -130,16 +139,16 @@ func (client *Client) recv (msg *Message) error {
 
         msg.NlErr = *(*syscall.NlMsgerr)(unsafe.Pointer(&data[0]))
 
-        log.Printf("ipvs:Client.recv: Nl:%+v NlErr:%v\n", msg.Nl, msg.NlErr)
+        client.logDebug.Printf("Client.recv: Nl:%+v NlErr:%v\n", msg.Nl, msg.NlErr)
 
     case client.genlFamily:
         msg.Genl = *(*nlgo.GenlMsghdr)(unsafe.Pointer(&data[0]))
         msg.GenlData = data[nlgo.GENL_HDRLEN:]
 
-        log.Printf("ipvs:Client.recv: Nl:%+v Genl:%+v\n", msg.Nl, msg.Genl)
+        client.logDebug.Printf("Client.recv: Nl:%+v Genl:%+v\n", msg.Nl, msg.Genl)
 
     default:
-        log.Printf("ipvs:Client.recv: Nl:%+v\n", msg.Nl)
+        client.logDebug.Printf("Client.recv: Nl:%+v\n", msg.Nl)
     }
 
     return nil
@@ -168,19 +177,19 @@ func (client *Client) request (request Request, handler func (msg Message) error
 
         switch msg.Nl.Type {
         case syscall.NLMSG_NOOP:
-            log.Printf("ipvs:Client.request: noop\n")
+            client.logDebug.Printf("Client.request: noop\n")
             // XXX: ?
 
         case syscall.NLMSG_DONE:
-            log.Printf("ipvs:Client.request: done\n")
+            client.logDebug.Printf("Client.request: done\n")
 
             return nil
 
         case syscall.NLMSG_OVERRUN:
-            log.Printf("ipvs:Client.request: overflow\n")
-
             // XXX: re-open socket?
-            return nlgo.NLE_MSG_OVERFLOW
+            err := nlgo.NLE_MSG_OVERFLOW
+
+            return fmt.Errorf("ipvs:Client.request: %s", err)
 
         case syscall.NLMSG_ERROR:
             if msg.NlErr.Error > 0 {
@@ -225,8 +234,7 @@ func (client *Client) queryParser (cmd uint8, policy nlgo.MapPolicy, cb func(att
         }
 
         if attrs, err := policy.Parse(msg.GenlData); err != nil {
-            log.Printf("ipvs:Client.queryParser: %s\n%s", err, hex.Dump(msg.GenlData))
-            return err
+            return fmt.Errorf("ipvs:Client.queryParser: %s\n%s", err, hex.Dump(msg.GenlData))
         } else {
             return cb(attrs)
         }
