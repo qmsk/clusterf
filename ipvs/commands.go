@@ -25,6 +25,24 @@ type Service struct {
     Netmask     uint32
 }
 
+type Dest struct {
+    // id
+    // TODO: IPVS_DEST_ATTR_ADDR_FAMILY
+    Addr        net.IP
+    Port        uint16
+
+    // params
+    FwdMethod   uint32
+    Weight      uint32
+    UThresh     uint32
+    LThresh     uint32
+
+    // info
+    ActiveConns     uint32
+    InactConns      uint32
+    PersistConns    uint32
+}
+
 func unpack(buf []byte, out interface{}) error {
     return binary.Read(bytes.NewReader(buf), binary.BigEndian, out)
 }
@@ -37,6 +55,15 @@ func pack (in interface{}) []byte {
     }
 
     return buf.Bytes()
+}
+
+func packAddr (af uint16, addr net.IP) []byte {
+    switch af {
+        case syscall.AF_INET:   return ([]byte)(addr.To4())
+        case syscall.AF_INET6:  return ([]byte)(addr.To16())
+        default:
+            panic(fmt.Errorf("ipvs:packAddr: unknown af=%d addr=%v", af, addr))
+    }
 }
 
 func htons (value uint16) uint16 {
@@ -88,14 +115,7 @@ func (self *Service) attrs(full bool) nlgo.AttrList {
             nlattr(IPVS_SVC_ATTR_FWMARK, self.FwMark),
         )
     } else if self.Protocol != 0 && self.Addr != nil && self.Port != 0 {
-        var addr []byte
-
-        switch self.Af {
-        case syscall.AF_INET:   addr = ([]byte)(self.Addr.To4())
-        case syscall.AF_INET6:  addr = ([]byte)(self.Addr.To16())
-        default:
-            panic(fmt.Errorf("ipvs:Service.attrs: unknown service Af=%d Addr=%v", self.Af, self.Addr))
-        }
+        addr := packAddr(self.Af, self.Addr)
 
         attrs = append(attrs,
             nlattr(IPVS_SVC_ATTR_AF, self.Af),
@@ -119,20 +139,49 @@ func (self *Service) attrs(full bool) nlgo.AttrList {
     return attrs
 }
 
+func (self *Dest) attrs(service *Service, full bool) nlgo.AttrList {
+    var attrs nlgo.AttrList
+
+    attrs = append(attrs,
+        nlattr(IPVS_DEST_ATTR_ADDR, packAddr(service.Af, self.Addr)),
+        nlattr(IPVS_DEST_ATTR_PORT, htons(self.Port)),
+    )
+
+    if full {
+        attrs = append(attrs,
+            nlattr(IPVS_DEST_ATTR_FWD_METHOD,   self.FwdMethod),
+            nlattr(IPVS_DEST_ATTR_WEIGHT,       self.Weight),
+            nlattr(IPVS_DEST_ATTR_U_THRESH,     self.UThresh),
+            nlattr(IPVS_DEST_ATTR_L_THRESH,     self.LThresh),
+        )
+    }
+
+    return attrs
+}
+
 type cmd struct {
     serviceId   *Service
     serviceFull *Service
+
+    destId      *Dest
+    destFull    *Dest
 }
 
 func (self cmd) attrs() nlgo.AttrList {
     attrs := nlgo.AttrList{}
 
+    if self.serviceId != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceId.attrs(false)))
+    }
     if self.serviceFull != nil {
         attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceFull.attrs(true)))
     }
 
-    if self.serviceId != nil {
-        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceId.attrs(false)))
+    if self.destId != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.destId.attrs(self.serviceId, false)))
+    }
+    if self.destFull != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.destFull.attrs(self.serviceId, true)))
     }
 
     return attrs
@@ -208,6 +257,30 @@ func (client *Client) ListServices() ([]Service, error) {
     } else {
         return services, nil
     }
+}
+
+func (client *Client) NewDest(service Service, dest Dest) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_NEW_DEST,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceId: &service, destFull: &dest}.attrs(),
+    })
+}
+
+func (client *Client) SetDest(service Service, dest Dest) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_SET_DEST,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceId: &service, destFull: &dest}.attrs(),
+    })
+}
+
+func (client *Client) DelDest(service Service, dest Dest) error {
+    return client.exec(Request{
+        Cmd:        IPVS_CMD_DEL_DEST,
+        Policy:     ipvs_cmd_policy,
+        Attrs:      cmd{serviceId: &service, destId: &dest}.attrs(),
+    })
 }
 
 func (client *Client) ListDests(service Service) (error) {
