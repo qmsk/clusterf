@@ -137,6 +137,11 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
     // match against our tree
     nodePath := strings.Split(path, "/")
 
+    if len(path) == 0 {
+        // Split("", "/") would give [""]
+        nodePath = nil
+    }
+
     if len(nodePath) == 0 && node.Dir {
         // XXX: handle rmdir/mkdir of root?
         log.Printf("server:etcd.sync: %s\n", action)
