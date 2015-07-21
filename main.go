@@ -5,6 +5,7 @@ import (
     "fmt"
     "qmsk.net/clusterf/ipvs"
     "log"
+    "net"
     "os"
     "qmsk.net/clusterf/server"
     "syscall"
@@ -65,37 +66,144 @@ func (self *Server) printIPVS () {
     }
 }
 
-func (self *Server) syncService (service server.Service) {
+func (self *Server) syncServiceType (ipvsService *ipvs.Service, frontend *server.ServiceFrontend) error {
+    switch ipvsService.Af {
+    case syscall.AF_INET:
+        if frontend.IPv4 == "" {
+            ipvsService.Addr = nil
+        } else if ip := net.ParseIP(frontend.IPv4); ip == nil {
+            return fmt.Errorf("Invalid IPv4: %s", frontend.IPv4)
+        } else if ip4 := ip.To4(); ip4 == nil {
+            return fmt.Errorf("Invalid IPv4: %s", ip)
+        } else {
+            ipvsService.Addr = ip4
+        }
+    case syscall.AF_INET6:
+        if frontend.IPv6 == "" {
+            ipvsService.Addr = nil
+        } else if ip := net.ParseIP(frontend.IPv6); ip == nil {
+            return fmt.Errorf("Invalid IPv6: %s", frontend.IPv6)
+        } else if ip16 := ip.To16(); ip16 == nil {
+            return fmt.Errorf("Invalid IPv6: %s", ip)
+        } else {
+            ipvsService.Addr = ip16
+        }
+    }
+
+    switch ipvsService.Protocol {
+    case syscall.IPPROTO_TCP:
+        ipvsService.Port = frontend.TCP
+    case syscall.IPPROTO_UDP:
+        ipvsService.Port = frontend.UDP
+    default:
+        panic("invalid proto")
+    }
+
+    return nil
+}
+
+func (self *Server) syncServerType (ipvsDest *ipvs.Dest, server *server.ServiceServer, ipvsService ipvs.Service) error {
+    switch ipvsService.Af {
+    case syscall.AF_INET:
+        if server.IPv4 == "" {
+            ipvsDest.Addr = nil
+        } else if ip := net.ParseIP(server.IPv4); ip == nil {
+            return fmt.Errorf("Invalid IPv4: %s", server.IPv4)
+        } else if ip4 := ip.To4(); ip4 == nil {
+            return fmt.Errorf("Invalid IPv4: %s", ip)
+        } else {
+            ipvsDest.Addr = ip4
+        }
+    case syscall.AF_INET6:
+        if server.IPv6 == "" {
+            ipvsDest.Addr = nil
+        } else if ip := net.ParseIP(server.IPv6); ip == nil {
+            return fmt.Errorf("Invalid IPv6: %s", server.IPv6)
+        } else if ip16 := ip.To16(); ip16 == nil {
+            return fmt.Errorf("Invalid IPv6: %s", ip)
+        } else {
+            ipvsDest.Addr = ip16
+        }
+    }
+
+    switch ipvsService.Protocol {
+    case syscall.IPPROTO_TCP:
+        ipvsDest.Port = server.TCP
+    case syscall.IPPROTO_UDP:
+        ipvsDest.Port = server.UDP
+    default:
+        panic("invalid proto")
+    }
+
+    return nil
+}
+
+type serviceType struct {
+    af      uint16
+    proto   uint16
+}
+
+var serviceTypes = []serviceType {
+    { syscall.AF_INET,      syscall.IPPROTO_TCP },
+    { syscall.AF_INET6,     syscall.IPPROTO_TCP },
+    { syscall.AF_INET,      syscall.IPPROTO_UDP },
+    { syscall.AF_INET6,     syscall.IPPROTO_UDP },
+}
+
+func (self *Server) syncService (service *server.Service) {
     log.Printf("Sync %s: Frontend %+v\n", service.Name, service.Frontend)
 
     ipvsService := ipvs.Service{
-        Af:         syscall.AF_INET,
-        Protocol:   syscall.IPPROTO_TCP,
-        Addr:       service.Frontend.IPv4,
-        Port:       service.Frontend.TCP,
-
         SchedName:  "wlc",
         Timeout:    0,
         Flags:      ipvs.IPVSFlags{Flags: 0, Mask: 0xffffffff},
         Netmask:    0xffffffff,
     }
 
-    if err := self.ipvs.NewService(ipvsService); err != nil  {
-        log.Fatalf("ipvs.NewService %s: %s\n", service.Name, err)
-    }
+    for _, serviceType := range serviceTypes {
+        ipvsService.Af = serviceType.af
+        ipvsService.Protocol = serviceType.proto
 
-    for serverName, server := range service.Servers {
-        log.Printf("Sync %s: Server %s: %+v\n", service.Name, serverName, server)
-
-        ipvsDest := ipvs.Dest{
-            Addr:       server.IPv4,
-            Port:       server.TCP,
-            FwdMethod:  ipvs.IP_VS_CONN_F_MASQ,
-            Weight:     10,
+        if err := self.syncServiceType(&ipvsService, service.Frontend); err != nil {
+            log.Printf("syncServiceType %s (%+v): %s\n", service.Name, serviceType, err)
         }
 
-        if err := self.ipvs.NewDest(ipvsService, ipvsDest); err != nil {
-            log.Fatalf("ipvs.NewDest %s %s: %s\n", service.Name, serverName, err)
+        if ipvsService.Addr == nil || ipvsService.Port == 0 {
+            // XXX: del the existing instance
+            /* if err := self.ipvs.DelService(ipvsService); err != nil  {
+                log.Fatalf("ipvs.NewService %s: %s\n", service.Name, err)
+            } */
+
+            return
+        } else {
+            if err := self.ipvs.NewService(ipvsService); err != nil  {
+                log.Fatalf("ipvs.NewService %s: %s\n", service.Name, err)
+            }
+        }
+
+        // backing servers
+        for serverName, server := range service.Servers {
+            log.Printf("Sync %s: Server %s: %+v\n", service.Name, serverName, server)
+
+            ipvsDest := ipvs.Dest{
+                FwdMethod:  ipvs.IP_VS_CONN_F_MASQ,
+                Weight:     10,
+            }
+
+            if err := self.syncServerType(&ipvsDest, &server, ipvsService); err != nil {
+                log.Printf("syncServerType %s %s (%+v): %s\n", service.Name, serverName, serviceType, err)
+            }
+
+            if ipvsDest.Addr == nil || ipvsDest.Port == 0 {
+                // XXX: del the existing instance
+                /* if err := self.ipvs.DelDest(ipvsService, ipvsDest); err != nil  {
+                    log.Fatalf("ipvs.DelDest %s %s: %s\n", service.Name, serverName, err)
+                } */
+            } else {
+                if err := self.ipvs.NewDest(ipvsService, ipvsDest); err != nil {
+                    log.Fatalf("ipvs.NewDest %s %s: %s\n", service.Name, serverName, err)
+                }
+            }
         }
     }
 }
@@ -147,13 +255,15 @@ func main() {
         } else {
             // iterate initial set of services
             for _, service := range services {
-                self.syncService(service)
+                self.syncService(&service)
             }
         }
 
         // read channel for changes
         for event := range self.etcd.Sync() {
             log.Printf("etcd.Sync: %+v\n", event)
+
+            self.syncService(event.Service)
         }
     }
 
