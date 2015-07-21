@@ -65,6 +65,41 @@ func (self *Server) printIPVS () {
     }
 }
 
+func (self *Server) syncService (service server.Service) {
+    log.Printf("Sync %s: Frontend %+v\n", service.Name, service.Frontend)
+
+    ipvsService := ipvs.Service{
+        Af:         syscall.AF_INET,
+        Protocol:   syscall.IPPROTO_TCP,
+        Addr:       service.Frontend.IPv4,
+        Port:       service.Frontend.TCP,
+
+        SchedName:  "wlc",
+        Timeout:    0,
+        Flags:      ipvs.IPVSFlags{Flags: 0, Mask: 0xffffffff},
+        Netmask:    0xffffffff,
+    }
+
+    if err := self.ipvs.NewService(ipvsService); err != nil  {
+        log.Fatalf("ipvs.NewService %s: %s\n", service.Name, err)
+    }
+
+    for serverName, server := range service.Servers {
+        log.Printf("Sync %s: Server %s: %+v\n", service.Name, serverName, server)
+
+        ipvsDest := ipvs.Dest{
+            Addr:       server.IPv4,
+            Port:       server.TCP,
+            FwdMethod:  ipvs.IP_VS_CONN_F_MASQ,
+            Weight:     10,
+        }
+
+        if err := self.ipvs.NewDest(ipvsService, ipvsDest); err != nil {
+            log.Fatalf("ipvs.NewDest %s %s: %s\n", service.Name, serverName, err)
+        }
+    }
+}
+
 func main() {
     flag.Parse()
 
@@ -107,44 +142,22 @@ func main() {
         self.etcd = etcdClient
 
         // start
-        err := self.etcd.Sync(func (service server.Service) {
-            log.Printf("Sync %s: Frontend %+v\n", service.Name, service.Frontend)
-
-            ipvsService := ipvs.Service{
-                Af:         syscall.AF_INET,
-                Protocol:   syscall.IPPROTO_TCP,
-                Addr:       service.Frontend.IPv4,
-                Port:       service.Frontend.TCP,
-
-                SchedName:  "wlc",
-                Timeout:    0,
-                Flags:      ipvs.IPVSFlags{Flags: 0, Mask: 0xffffffff},
-                Netmask:    0xffffffff,
-            }
-
-            if err := self.ipvs.NewService(ipvsService); err != nil  {
-                log.Fatalf("ipvs.NewService %s: %s\n", service.Name, err)
-            }
-
-            for serverName, server := range service.Servers {
-                log.Printf("Sync %s: Server %s: %+v\n", service.Name, serverName, server)
-
-                ipvsDest := ipvs.Dest{
-                    Addr:       server.IPv4,
-                    Port:       server.TCP,
-                    FwdMethod:  ipvs.IP_VS_CONN_F_MASQ,
-                    Weight:     10,
-                }
-
-                if err := self.ipvs.NewDest(ipvsService, ipvsDest); err != nil {
-                    log.Fatalf("ipvs.NewDest %s %s: %s\n", service.Name, serverName, err)
-                }
-            }
-        })
-        if err != nil {
+        if services, err := self.etcd.Scan(); err != nil {
             log.Fatalf("etcd.Sync: %s\n", err)
+        } else {
+            // iterate initial set of services
+            for _, service := range services {
+                self.syncService(service)
+            }
+        }
+
+        // read channel for changes
+        for event := range self.etcd.Sync() {
+            log.Printf("etcd.Sync: %+v\n", event)
         }
     }
 
     // self.printIPVS()
+
+    log.Printf("Exit\n")
 }
