@@ -22,7 +22,7 @@ func loadServer (t *testing.T, raw string) ServiceServer {
 func TestServerLoad (t *testing.T) {
     simple := loadServer(t, "{\"ipv4\": \"127.0.0.1\"}")
 
-    if simple.IPv4.String() != "127.0.0.1" {
+    if simple.IPv4 != "127.0.0.1" {
         t.Error("%v.IPv4 != 127.0.0.1", simple)
     }
 }
@@ -50,17 +50,20 @@ var testSyncErrors = []struct {
     {action:"create",   key:"/clusterf", dir:true},
     {action:"create",   key:"/clusterf/services", dir:true},
     {action:"create",   key:"/clusterf/services/test", dir:true},
-    {action:"set",      key:"/clusterf/services/test/frontend", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
+    {action:"set",      key:"/clusterf/services/test/frontend", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}",
+        event: &Event{Type: NewService, Service: &Service{Name: "test"}}},
     {action:"create",   key:"/clusterf/services/test/servers", dir:true},
-    {action:"set",      key:"/clusterf/services/test/servers/test1", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
-    {action:"set",      key:"/clusterf/services/test/servers/test2", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
+    {action:"set",      key:"/clusterf/services/test/servers/test1", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}",
+        event: &Event{Type: NewServer, Service: &Service{Name: "test"}, ServerName: "test1"}},
+    {action:"set",      key:"/clusterf/services/test/servers/test2", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}",
+        event: &Event{Type: NewServer, Service: &Service{Name: "test"}, ServerName: "test2"}},
 
     {action:"delete",   key:"/clusterf/services/test3/servers/test1"},
     {action:"delete",   key:"/clusterf/services/test3/servers", dir:true},
-    {action:"delete",   key:"/clusterf/services/test3", dir:true,
-        event: &Event{Type: Del, Service: &Service{Name: "test3"}}},
-    {action:"delete",   key:"/clusterf/services", dir:true,
-        event: &Event{Type: Del, Service: &Service{Name: "test"}}}, // XXX: test state
+    {action:"delete",   key:"/clusterf/services/test3", dir:true},
+    {action:"delete",   key:"/clusterf/services/test", dir:true,
+        event: &Event{Type: DelService, Service: &Service{Name: "test"}}},
+    {action:"delete",   key:"/clusterf/services", dir:true},
 }
 
 func TestSync(t *testing.T) {
@@ -92,8 +95,19 @@ func TestSync(t *testing.T) {
         if event != nil {
             if testCase.event == nil {
                 t.Errorf("fail %+v: event %+v", testCase, event)
-            } else if event.Type != testCase.event.Type {
-                t.Errorf("fail %+v: event %+v type", testCase, event)
+            } else {
+                if event.Type != testCase.event.Type {
+                    t.Errorf("fail %+v: event %+v type", testCase, event)
+                }
+
+                if event.Service == nil {
+                    // XXX: srs?
+                    if testCase.event.Service != nil {
+                        t.Errorf("fail %+v: event %+v service", testCase, event)
+                    }
+                } else if event.Service.Name != testCase.event.Service.Name {
+                    t.Errorf("fail %+v: event %+v service name", testCase, event)
+                }
             }
         } else if testCase.event != nil {
             t.Errorf("fail %+v: event nil", testCase)

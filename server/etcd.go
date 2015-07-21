@@ -162,8 +162,8 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 
         // propagate
         for _, service := range self.services {
-            // XXX
-            event = service.sync(action)
+            // XXX: multiple events
+            event = self.syncService(&service, action)
         }
 
     } else if len(nodePath) >= 2 && nodePath[0] == "services" {
@@ -171,11 +171,15 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
         service, serviceExists := self.services[serviceName]
 
         if !serviceExists {
-            service = Service{Name: serviceName}
+            service = Service{
+                Name: serviceName,
+                Servers: make(map[string]ServiceServer),
+            }
+            self.services[serviceName] = service
         }
 
         if len(nodePath) == 2 && node.Dir {
-            event = service.sync(action)
+            event = self.syncService(&service, action)
 
         } else if len(nodePath) == 3 && nodePath[2] == "frontend" && !node.Dir {
             var frontend ServiceFrontend
@@ -193,8 +197,8 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 
             // propagate
             for serverName, server := range service.Servers {
-                // XXX
-                event = service.syncServer(serverName, action, &server) // XXX: server?
+                // XXX: multiple events
+                event = service.syncServer(serverName, action, &server)
             }
 
         } else if len(nodePath) >= 4 && nodePath[2] == "servers" {
@@ -219,15 +223,29 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
             return nil, fmt.Errorf("Ignore unknown service %s node: %s", serviceName, path)
         }
 
-        if !serviceExists {
-            self.services[serviceName] = service
-        }
-
     } else {
         return nil, fmt.Errorf("Ignore unknown node: %s", path)
     }
 
     return event, nil
+}
+
+/*
+ * The service as a whole has been changed (e.g. removed).
+ */
+func (self *Etcd) syncService(service *Service, action string) *Event {
+    log.Printf("server:Etcd.syncService %s: sync %s\n", service.Name, action)
+
+    switch action {
+    case "delete", "expire":
+        delete(self.services, service.Name)
+
+        if service.Frontend != nil {
+            return &Event{Service: service, Type: DelService, PrevFrontend: service.Frontend}
+        }
+    }
+
+    return nil
 }
 
 /*
