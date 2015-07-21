@@ -2,6 +2,7 @@ package server
 
 import (
     "github.com/coreos/go-etcd/etcd"
+    "log"
     "regexp"
     "testing"
 )
@@ -32,6 +33,7 @@ var testSyncErrors = []struct {
     dir     bool
     value   string
 
+    event   *Event
     error   string
 }{
     {action:"set", key:"/clusterf", dir:false, value:"haha", error: "Ignore unknown node"},
@@ -55,8 +57,10 @@ var testSyncErrors = []struct {
 
     {action:"delete",   key:"/clusterf/services/test3/servers/test1"},
     {action:"delete",   key:"/clusterf/services/test3/servers", dir:true},
-    {action:"delete",   key:"/clusterf/services/test3", dir:true},
-    {action:"delete",   key:"/clusterf/services", dir:true},
+    {action:"delete",   key:"/clusterf/services/test3", dir:true,
+        event: &Event{Type: Del, Service: &Service{Name: "test3"}}},
+    {action:"delete",   key:"/clusterf/services", dir:true,
+        event: &Event{Type: Del, Service: &Service{Name: "test"}}}, // XXX: test state
 }
 
 func TestSync(t *testing.T) {
@@ -72,22 +76,29 @@ func TestSync(t *testing.T) {
             Value:  testCase.value,
         }
 
-        err := self.sync(testCase.action, node)
+        log.Printf("--- %+v\n", testCase)
+        event, err := self.sync(testCase.action, node)
 
         if err != nil {
             if testCase.error == "" {
                 t.Errorf("error %+v: error %s", testCase, err)
             } else if !regexp.MustCompile(testCase.error).MatchString(err.Error()) {
                 t.Errorf("fail %+v: error: %s", testCase, err)
-            } else {
-                t.Logf("ok %+v: error: %s", testCase, err)
             }
-        } else {
-            if testCase.error != "" {
-                t.Errorf("fail %+v: error nil", testCase)
-            } else {
-                t.Logf("ok %+v", testCase)
-            }
+        } else if testCase.error != "" {
+            t.Errorf("fail %+v: error nil", testCase)
         }
+
+        if event != nil {
+            if testCase.event == nil {
+                t.Errorf("fail %+v: event %+v", testCase, event)
+            } else if event.Type != testCase.event.Type {
+                t.Errorf("fail %+v: event %+v type", testCase, event)
+            }
+        } else if testCase.event != nil {
+            t.Errorf("fail %+v: event nil", testCase)
+        }
+
+        // t.Logf("ok %+v", testCase)
     }
 }

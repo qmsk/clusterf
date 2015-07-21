@@ -115,8 +115,13 @@ func (self *Etcd) Sync() chan Event {
                 log.Printf("etcd.Watch: %s %+v\n", response.Action, response.Node)
             }
 
-            if err := self.sync(response.Action, response.Node); err != nil {
+            event, err := self.sync(response.Action, response.Node)
+            if err != nil {
                 log.Printf("server:etcd.sync: %s\n", err)
+            } else if event != nil {
+                log.Printf("server:etcd.sync: %s\n", event)
+
+                out <- *event
             }
         }
     }()
@@ -127,9 +132,15 @@ func (self *Etcd) Sync() chan Event {
 /*
  * Parse a changed node and return any actions.
  */
-func (self *Etcd) sync(action string, node *etcd.Node) error {
+func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
+    var event *Event
     path := node.Key
-    path = strings.TrimPrefix(path, self.config.Prefix)
+
+    if strings.HasPrefix(path, self.config.Prefix) {
+        path = strings.TrimPrefix(path, self.config.Prefix)
+    } else {
+        return nil, fmt.Errorf("path outside tree")
+    }
     path = strings.Trim(path, "/")
 
     log.Printf("etcd:sync: %s %v\n", action, path)
@@ -143,7 +154,7 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
     }
 
     if len(nodePath) == 0 && node.Dir {
-        // XXX: handle rmdir/mkdir of root?
+        // XXX: just ignore?
         log.Printf("server:etcd.sync: %s\n", action)
 
     } else if len(nodePath) == 1 && nodePath[0] == "services" && node.Dir {
@@ -151,7 +162,8 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
 
         // propagate
         for _, service := range self.services {
-            service.sync(action)
+            // XXX
+            event = service.sync(action)
         }
 
     } else if len(nodePath) >= 2 && nodePath[0] == "services" {
@@ -163,17 +175,17 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
         }
 
         if len(nodePath) == 2 && node.Dir {
-            service.sync(action)
+            event = service.sync(action)
 
         } else if len(nodePath) == 3 && nodePath[2] == "frontend" && !node.Dir {
             var frontend ServiceFrontend
 
             if node.Value == "" {
-                service.syncFrontend(action, nil)
+                event = service.syncFrontend(action, nil)
             } else if err := frontend.loadEtcd(node); err != nil {
-                return fmt.Errorf("service %s frontend: %s\n", serviceName, err)
+                return nil, fmt.Errorf("service %s frontend: %s", serviceName, err)
             } else {
-                service.syncFrontend(action, &frontend)
+                event = service.syncFrontend(action, &frontend)
             }
 
         } else if len(nodePath) == 3 && nodePath[2] == "servers" && node.Dir {
@@ -181,7 +193,8 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
 
             // propagate
             for serverName, server := range service.Servers {
-                service.syncServer(serverName, action, &server) // XXX: server?
+                // XXX
+                event = service.syncServer(serverName, action, &server) // XXX: server?
             }
 
         } else if len(nodePath) >= 4 && nodePath[2] == "servers" {
@@ -191,19 +204,19 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
                 var server ServiceServer
 
                 if node.Value == "" {
-                    service.syncServer(serverName, action, nil)
+                    event = service.syncServer(serverName, action, nil)
                 } else if err := server.loadEtcd(node); err != nil {
-                    return fmt.Errorf("service %s server %s: %s\n", serviceName, serverName, err)
+                    return nil, fmt.Errorf("service %s server %s: %s", serviceName, serverName, err)
                 } else {
-                    service.syncServer(serverName, action, &server)
+                    event = service.syncServer(serverName, action, &server)
                 }
 
             } else {
-                return fmt.Errorf("Ignore unknown service %s servers node: %s\n", serviceName, path)
+                return nil, fmt.Errorf("Ignore unknown service %s servers node: %s", serviceName, path)
             }
 
         } else {
-            return fmt.Errorf("Ignore unknown service %s node: %s\n", serviceName, path)
+            return nil, fmt.Errorf("Ignore unknown service %s node: %s", serviceName, path)
         }
 
         if !serviceExists {
@@ -211,10 +224,10 @@ func (self *Etcd) sync(action string, node *etcd.Node) error {
         }
 
     } else {
-        return fmt.Errorf("Ignore unknown node: %s\n", path)
+        return nil, fmt.Errorf("Ignore unknown node: %s", path)
     }
 
-    return nil
+    return event, nil
 }
 
 /*
