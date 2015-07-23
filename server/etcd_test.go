@@ -7,22 +7,23 @@ import (
     "testing"
 )
 
-func loadBackend (t *testing.T, raw string) ServiceBackend {
-    var out ServiceBackend
+func loadBackend (t *testing.T, value string) *ServiceBackend {
+    node := etcd.Node{Key: "/clusterf/services/test/backends/test", Value: value, Dir: false}
 
-    node := etcd.Node{Key: "/test", Value: raw, Dir: false}
-
-    if err := out.loadEtcd(&node); err != nil {
-        t.Error("ServiceBackend.loadEtcd(%v): %s", raw, err)
+    if backend, err := loadEtcdServiceBackend(&node); err != nil {
+        t.Error("ServiceBackend.loadEtcd(%v): %s", value, err)
+        return nil
+    } else {
+        return backend
     }
-
-    return out
 }
 
 func TestBackendLoad (t *testing.T) {
     simple := loadBackend(t, "{\"ipv4\": \"127.0.0.1\"}")
 
-    if simple.IPv4 != "127.0.0.1" {
+    if simple == nil {
+
+    } else if simple.IPv4 != "127.0.0.1" {
         t.Error("%v.IPv4 != 127.0.0.1", simple)
     }
 }
@@ -33,7 +34,7 @@ var testSyncErrors = []struct {
     dir     bool
     value   string
 
-    event   *Event
+    events  []Event
     error   string
 }{
     {action:"set", key:"/clusterf", dir:false, value:"haha", error: "Ignore unknown node"},
@@ -50,20 +51,33 @@ var testSyncErrors = []struct {
     {action:"create",   key:"/clusterf", dir:true},
     {action:"create",   key:"/clusterf/services", dir:true},
     {action:"create",   key:"/clusterf/services/test", dir:true},
-    {action:"set",      key:"/clusterf/services/test/frontend", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}",
-        event: &Event{Type: NewService, Service: &Service{Name: "test"}}},
+    {action:"set",      key:"/clusterf/services/test/frontend",
+        value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}",
+        events: []Event{{Type: NewService, Service: &Service{Name: "test"}}},
+    },
     {action:"create",   key:"/clusterf/services/test/backends", dir:true},
-    {action:"set",      key:"/clusterf/services/test/backends/test1", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}",
-        event: &Event{Type: NewBackend, Service: &Service{Name: "test"}, BackendName: "test1"}},
-    {action:"set",      key:"/clusterf/services/test/backends/test2", value:"{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}",
-        event: &Event{Type: NewBackend, Service: &Service{Name: "test"}, BackendName: "test2"}},
+    {action:"set",      key:"/clusterf/services/test/backends/test1",
+        value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}",
+        events: []Event{{Type: NewBackend, Service: &Service{Name: "test"}, BackendName: "test1"}},
+    },
+    {action:"set",      key:"/clusterf/services/test/backends/test2",
+        value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}",
+        events: []Event{{Type: NewBackend, Service: &Service{Name: "test"}, BackendName: "test2"}},
+    },
+    {action:"set",      key:"/clusterf/services/test6/frontend",
+        value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}",
+        events: []Event{{Type: NewService, Service: &Service{Name: "test6"}}},
+    },
 
     {action:"delete",   key:"/clusterf/services/test3/backends/test1"},
     {action:"delete",   key:"/clusterf/services/test3/backends", dir:true},
     {action:"delete",   key:"/clusterf/services/test3", dir:true},
     {action:"delete",   key:"/clusterf/services/test", dir:true,
-        event: &Event{Type: DelService, Service: &Service{Name: "test"}}},
-    {action:"delete",   key:"/clusterf/services", dir:true},
+        events: []Event{{Type: DelService, Service: &Service{Name: "test"}}},
+    },
+    {action:"delete",   key:"/clusterf/services", dir:true,
+        events: []Event{{Type: DelService, Service: &Service{Name: "test6"}}},
+    },
 }
 
 func TestSync(t *testing.T) {
@@ -78,9 +92,12 @@ func TestSync(t *testing.T) {
             Dir:    testCase.dir,
             Value:  testCase.value,
         }
+        var events []*Event
 
         log.Printf("--- %+v\n", testCase)
-        event, err := self.sync(testCase.action, node)
+        err := self.sync(testCase.action, node, func (event *Event) {
+            events = append(events, event)
+        })
 
         if err != nil {
             if testCase.error == "" {
@@ -92,25 +109,25 @@ func TestSync(t *testing.T) {
             t.Errorf("fail %+v: error nil", testCase)
         }
 
-        if event != nil {
-            if testCase.event == nil {
-                t.Errorf("fail %+v: event %+v", testCase, event)
+        for i := 0; i < len(events) && i < len(testCase.events); i++ {
+            if i >= len(events) {
+                t.Errorf("fail %+v: missing event %+v", testCase, testCase.events[i])
+            } else if i >= len(testCase.events) {
+                t.Errorf("fail %+v: extra event %+v", testCase, events[i])
             } else {
-                if event.Type != testCase.event.Type {
-                    t.Errorf("fail %+v: event %+v type", testCase, event)
+                if events[i].Type != testCase.events[i].Type {
+                    t.Errorf("fail %+v: event %+v type", testCase, events[i])
                 }
 
-                if event.Service == nil {
+                if events[i].Service == nil {
                     // XXX: srs?
-                    if testCase.event.Service != nil {
-                        t.Errorf("fail %+v: event %+v service", testCase, event)
+                    if testCase.events[i].Service != nil {
+                        t.Errorf("fail %+v: event %+v service", testCase, events[i])
                     }
-                } else if event.Service.Name != testCase.event.Service.Name {
-                    t.Errorf("fail %+v: event %+v service name", testCase, event)
+                } else if events[i].Service.Name != testCase.events[i].Service.Name {
+                    t.Errorf("fail %+v: event %+v service name", testCase, events[i])
                 }
             }
-        } else if testCase.event != nil {
-            t.Errorf("fail %+v: event nil", testCase)
         }
 
         // t.Logf("ok %+v", testCase)

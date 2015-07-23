@@ -25,10 +25,6 @@ type Service struct {
     Backends    map[string]*ServiceBackend
 }
 
-type Services struct {
-    services    map[string]*Service
-}
-
 /*
  * Events when services change
  */
@@ -64,6 +60,13 @@ type Event struct {
      */
     BackendName     string
     Backend         *ServiceBackend
+}
+
+/*
+ * Manage services state
+ */
+type Services struct {
+    services    map[string]*Service
 }
 
 func newServices() *Services {
@@ -151,7 +154,7 @@ func (self *Service) syncFrontend(action string, frontend *ServiceFrontend) *Eve
 
     if get == nil {
         if set != nil {
-            return &Event{Service: self, Type: NewService, PrevFrontend: nil}
+            return &Event{Service: self, Type: NewService}
         }
     } else {
         if set == nil {
