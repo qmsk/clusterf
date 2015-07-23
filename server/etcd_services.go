@@ -40,7 +40,7 @@ func (self *Etcd) scanServices(servicesNode *etcd.Node) *Services {
 
         log.Printf("server:etcd.Scan %s: Service %+v\n", serviceNode.Key, service)
 
-        self.services.add(service)
+        services.add(service)
     }
 
     return services
@@ -58,7 +58,7 @@ func (self *Etcd) scanService(serviceNode *etcd.Node) *Service {
 
         if name == "frontend" {
             if frontend, err := loadEtcdServiceFrontend(node); err != nil {
-                log.Printf("server:etcd.scanService %s: ServiceFrontend.loadEtcd: %s\n", node.Key, err)
+                log.Printf("server:etcd.scanService %s: loadEtcdServiceFrontend: %s\n", node.Key, err)
                 continue
             } else {
                 log.Printf("server:etcd.scanService %s: Frontend: %+v\n", serviceName, frontend)
@@ -70,8 +70,8 @@ func (self *Etcd) scanService(serviceNode *etcd.Node) *Service {
             for _, backendNode := range node.Nodes {
                 backendName := path.Base(backendNode.Key)
 
-                if backend, err := loadEtcdServiceBackend(node); err != nil {
-                    log.Printf("server:etcd.scanService %s: ServiceBackend.loadEtcd %s: %s\n", backendNode.Key, backendName, err)
+                if backend, err := loadEtcdServiceBackend(backendNode); err != nil {
+                    log.Printf("server:etcd.scanService %s: loadEtcdServiceBackend %s: %s\n", backendNode.Key, backendName, err)
                     continue
                 } else {
                     log.Printf("server:etcd.scanService %s: Backend %s:%+v\n", serviceName, backendName, backend)

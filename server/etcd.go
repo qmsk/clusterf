@@ -87,7 +87,7 @@ func (self *Etcd) Scan() ([]*Service, error) {
         name := path.Base(node.Key)
 
         if name == "services" && node.Dir {
-            self.services = self.scanServices(response.Node)
+            self.services = self.scanServices(node)
         } else {
             log.Printf("server:etcd.Scan %s: Ignore unknown node\n", node.Key)
         }
