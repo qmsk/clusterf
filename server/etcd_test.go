@@ -96,7 +96,9 @@ func TestSync(t *testing.T) {
 
         log.Printf("--- %+v\n", testCase)
         err := self.sync(testCase.action, node, func (event *Event) {
-            events = append(events, event)
+            if event != nil {
+                events = append(events, event)
+            }
         })
 
         if err != nil {
