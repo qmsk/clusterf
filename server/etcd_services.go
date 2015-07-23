@@ -113,13 +113,14 @@ func (self *Etcd) sync(action string, node *etcd.Node, eventHandler func(event *
     }
 
     if len(nodePath) == 0 && node.Dir {
-        // XXX: just ignore?
+        // XXX: just ignore? Undefined if it makes sense to do anything here
         log.Printf("server:etcd.sync: %s\n", action)
 
     } else if len(nodePath) == 1 && nodePath[0] == "services" && node.Dir {
         log.Printf("server:etcd.sync: services: %s\n", action)
 
-        // propagate; XXX: range what
+        // propagate
+        // XXX: should this be moved to inside services; we both iterate and mutate the map here
         for _, service := range self.services.services {
             eventHandler(self.services.syncService(service, action))
         }

@@ -51,7 +51,7 @@ type Event struct {
     /*
      * Existing frontend for {Set,Del}Service events.
      */
-    PrevFrontend    *ServiceFrontend
+    Frontend        *ServiceFrontend
 
     /*
      * Assoicated server details for {New,Set,Del}Server events.
@@ -123,7 +123,7 @@ func (self *Services) syncService(service *Service, action string) *Event {
         delete(self.services, service.Name)
 
         if service.Frontend != nil {
-            return &Event{Service: service, Type: DelService, PrevFrontend: service.Frontend}
+            return &Event{Service: service, Type: DelService, Frontend: service.Frontend}
         }
     }
 
@@ -158,9 +158,9 @@ func (self *Service) syncFrontend(action string, frontend *ServiceFrontend) *Eve
         }
     } else {
         if set == nil {
-            return &Event{Service: self, Type: DelService, PrevFrontend: get}
+            return &Event{Service: self, Type: DelService, Frontend: get}
         } else if *get != *set {
-            return &Event{Service: self, Type: SetService, PrevFrontend: get}
+            return &Event{Service: self, Type: SetService, Frontend: get}
         }
     }
 

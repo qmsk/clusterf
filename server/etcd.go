@@ -80,7 +80,7 @@ func (self *Etcd) Scan() ([]*Service, error) {
     }
 
     // the tree root's ModifiedTime may be a long long time in the past, so we can't want to use that for waits
-    // XXX: is this enough to ensure atomic sync with later .Watch() on the same tree?
+    // we assume this enough to ensure atomic sync with .Watch() on the same tree..
     self.syncIndex = response.EtcdIndex
 
     for _, node := range response.Node.Nodes {
