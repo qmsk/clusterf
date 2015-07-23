@@ -154,13 +154,13 @@ func (self *Service) syncFrontend(action string, frontend *ServiceFrontend) *Eve
 
     if get == nil {
         if set != nil {
-            return &Event{Service: self, Type: NewService}
+            return &Event{Service: self, Type: NewService, Frontend: set}
         }
     } else {
         if set == nil {
             return &Event{Service: self, Type: DelService, Frontend: get}
         } else if *get != *set {
-            return &Event{Service: self, Type: SetService, Frontend: get}
+            return &Event{Service: self, Type: SetService, Frontend: set}
         }
     }
 
@@ -196,13 +196,13 @@ func (self *Service) syncBackend(name string, action string, backend *ServiceBac
 
     if get == nil {
         if set != nil {
-            return &Event{Service: self, Type: NewBackend, BackendName: name}
+            return &Event{Service: self, Type: NewBackend, BackendName: name, Backend: set}
         }
     } else {
         if set == nil {
             return &Event{Service: self, Type: DelBackend, BackendName: name, Backend: get}
         } else if *get != *set {
-            return &Event{Service: self, Type: SetBackend, BackendName: name, Backend: get}
+            return &Event{Service: self, Type: SetBackend, BackendName: name, Backend: set}
         }
     }
 
