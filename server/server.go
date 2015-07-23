@@ -11,7 +11,7 @@ type ServiceFrontend struct {
     UDP     uint16  `json:"udp,omitempty"`
 }
 
-type ServiceServer struct {
+type ServiceBackend struct {
     IPv4    string  `json:"ipv4,omitempty"`
     IPv6    string  `json:"ipv6,omitempty"`
     TCP     uint16  `json:"tcp,omitempty"`
@@ -22,9 +22,16 @@ type Service struct {
     Name        string
 
     Frontend    *ServiceFrontend
-    Servers     map[string]ServiceServer
+    Backends    map[string]*ServiceBackend
 }
 
+type Services struct {
+    services    map[string]*Service
+}
+
+/*
+ * Events when services change
+ */
 type EventType string
 
 const (
@@ -32,18 +39,18 @@ const (
     SetService     EventType   = "set-service"
     DelService     EventType   = "del-service"
 
-    NewServer      EventType   = "new-server"
-    SetServer      EventType   = "set-server"
-    DelServer      EventType   = "del-server"
+    NewBackend     EventType   = "new-backend"
+    SetBackend     EventType   = "set-backend"
+    DelBackend     EventType   = "del-backend"
 )
 
 type Event struct {
-    Type        EventType
+    Type            EventType
 
     /*
      * The service in its updated state after the event.
      */
-    Service     *Service
+    Service         *Service
 
     /*
      * Existing frontend for {Set,Del}Service events.
@@ -55,8 +62,69 @@ type Event struct {
      *
      * {New,Set,Del}Service events implicitly include all associated servers, they are not returned as separate events.
      */
-    ServerName      string
-    Server          ServiceServer
+    BackendName     string
+    Backend         *ServiceBackend
+}
+
+func newServices() *Services {
+    return &Services{
+        services:   make(map[string]*Service),
+    }
+}
+
+func newService(name string) *Service {
+    return &Service{
+        Name:       name,
+        Backends:   make(map[string]*ServiceBackend),
+    }
+}
+
+func (self *Services) get(name string) *Service {
+    service, serviceExists := self.services[name]
+
+    if !serviceExists {
+        service = newService(name)
+        self.services[name] = service
+    }
+
+    return service
+}
+
+func (self *Services) add(service *Service) {
+    self.services[service.Name] = service
+}
+
+/* Get all currently valid Services */
+func (self *Services) Services() []*Service {
+    services := make([]*Service, 0, len(self.services))
+
+    for _, service := range self.services {
+        if service.Frontend == nil {
+            continue
+        }
+
+        services = append(services, service)
+    }
+
+    return services
+}
+
+/*
+ * The service as a whole has been changed (e.g. removed).
+ */
+func (self *Services) syncService(service *Service, action string) *Event {
+    log.Printf("server:Services.syncService %s: sync %s\n", service.Name, action)
+
+    switch action {
+    case "delete", "expire":
+        delete(self.services, service.Name)
+
+        if service.Frontend != nil {
+            return &Event{Service: service, Type: DelService, PrevFrontend: service.Frontend}
+        }
+    }
+
+    return nil
 }
 
 /*
@@ -99,39 +167,39 @@ func (self *Service) syncFrontend(action string, frontend *ServiceFrontend) *Eve
 /*
  * One of the service's servers has been changed. The server will be given as nil if it not defined anymore.
  */
-func (self *Service) syncServer(serverName string, action string, server *ServiceServer) *Event {
-    get, isGet := self.Servers[serverName]
-    set := server
+func (self *Service) syncBackend(name string, action string, backend *ServiceBackend) *Event {
+    get := self.Backends[name]
+    set := backend
 
     switch action {
     case "delete", "expire":
         set = nil
 
     case "create":
-        isGet = false
+        get = nil
 
     case "set":
     }
 
 
-    log.Printf("server:Service %s: syncServer %s: %s %+v <- %+v\n", self.Name, serverName, action, set, get)
+    log.Printf("server:Service %s: syncBackend %s: %s %+v <- %+v\n", self.Name, name, action, set, get)
 
     // apply
     if set != nil {
-        self.Servers[serverName] = *set
+        self.Backends[name] = set
     } else {
-        delete(self.Servers, serverName)
+        delete(self.Backends, name)
     }
 
-    if !isGet {
+    if get == nil {
         if set != nil {
-            return &Event{Service: self, Type: NewServer, ServerName: serverName}
+            return &Event{Service: self, Type: NewBackend, BackendName: name}
         }
     } else {
         if set == nil {
-            return &Event{Service: self, Type: DelServer, ServerName: serverName, Server: get}
-        } else if get != *set {
-            return &Event{Service: self, Type: SetServer, ServerName: serverName, Server: get}
+            return &Event{Service: self, Type: DelBackend, BackendName: name, Backend: get}
+        } else if *get != *set {
+            return &Event{Service: self, Type: SetBackend, BackendName: name, Backend: get}
         }
     }
 

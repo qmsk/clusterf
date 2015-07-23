@@ -20,7 +20,7 @@ type Etcd struct {
     client      *etcd.Client
     syncIndex   uint64
 
-    services    map[string]Service
+    services    *Services
 }
 
 func (self *Etcd) String() string {
@@ -35,7 +35,7 @@ func (self *ServiceFrontend) loadEtcd (node *etcd.Node) error {
     return nil
 }
 
-func (self *ServiceServer) loadEtcd (node *etcd.Node) error {
+func (self *ServiceBackend) loadEtcd (node *etcd.Node) error {
     if err := json.Unmarshal([]byte(node.Value), &self); err != nil {
         return err
     }
@@ -53,26 +53,7 @@ func (self EtcdConfig) Open() (*Etcd, error) {
 
     e.client = etcd.NewClient(machines)
 
-    e.services = make(map[string]Service)
-
     return e, nil
-}
-
-/*
- * Get current list of Services.
- */
-func (self *Etcd) Services() []Service {
-    services := make([]Service, 0, len(self.services))
-
-    for _, service := range self.services {
-        if service.Frontend == nil {
-            continue
-        }
-
-        services = append(services, service)
-    }
-
-    return services
 }
 
 /*
@@ -160,26 +141,17 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
     } else if len(nodePath) == 1 && nodePath[0] == "services" && node.Dir {
         log.Printf("server:etcd.sync: services: %s\n", action)
 
-        // propagate
-        for _, service := range self.services {
+        // propagate; XXX: range what
+        for _, service := range self.services.services {
             // XXX: multiple events
-            event = self.syncService(&service, action)
+            event = self.services.syncService(service, action)
         }
-
     } else if len(nodePath) >= 2 && nodePath[0] == "services" {
         serviceName := nodePath[1]
-        service, serviceExists := self.services[serviceName]
-
-        if !serviceExists {
-            service = Service{
-                Name: serviceName,
-                Servers: make(map[string]ServiceServer),
-            }
-            self.services[serviceName] = service
-        }
+        service := self.services.get(serviceName)
 
         if len(nodePath) == 2 && node.Dir {
-            event = self.syncService(&service, action)
+            event = self.services.syncService(service, action)
 
         } else if len(nodePath) == 3 && nodePath[2] == "frontend" && !node.Dir {
             var frontend ServiceFrontend
@@ -192,31 +164,31 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
                 event = service.syncFrontend(action, &frontend)
             }
 
-        } else if len(nodePath) == 3 && nodePath[2] == "servers" && node.Dir {
-            log.Printf("server:etcd.sync: services %s servers: %s\n", serviceName, action)
+        } else if len(nodePath) == 3 && nodePath[2] == "backends" && node.Dir {
+            log.Printf("server:etcd.sync: services %s backends: %s\n", serviceName, action)
 
             // propagate
-            for serverName, server := range service.Servers {
+            for backendName, backend := range service.Backends {
                 // XXX: multiple events
-                event = service.syncServer(serverName, action, &server)
+                event = service.syncBackend(backendName, action, backend)
             }
 
-        } else if len(nodePath) >= 4 && nodePath[2] == "servers" {
-            serverName := nodePath[3]
+        } else if len(nodePath) >= 4 && nodePath[2] == "backends" {
+            backendName := nodePath[3]
 
             if len(nodePath) == 4 && !node.Dir {
-                var server ServiceServer
+                var backend ServiceBackend
 
                 if node.Value == "" {
-                    event = service.syncServer(serverName, action, nil)
-                } else if err := server.loadEtcd(node); err != nil {
-                    return nil, fmt.Errorf("service %s server %s: %s", serviceName, serverName, err)
+                    event = service.syncBackend(backendName, action, nil)
+                } else if err := backend.loadEtcd(node); err != nil {
+                    return nil, fmt.Errorf("service %s backend %s: %s", serviceName, backendName, err)
                 } else {
-                    event = service.syncServer(serverName, action, &server)
+                    event = service.syncBackend(backendName, action, &backend) // XXX: pointer-to-value?
                 }
 
             } else {
-                return nil, fmt.Errorf("Ignore unknown service %s servers node: %s", serviceName, path)
+                return nil, fmt.Errorf("Ignore unknown service %s backends node: %s", serviceName, path)
             }
 
         } else {
@@ -231,29 +203,11 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 }
 
 /*
- * The service as a whole has been changed (e.g. removed).
- */
-func (self *Etcd) syncService(service *Service, action string) *Event {
-    log.Printf("server:Etcd.syncService %s: sync %s\n", service.Name, action)
-
-    switch action {
-    case "delete", "expire":
-        delete(self.services, service.Name)
-
-        if service.Frontend != nil {
-            return &Event{Service: service, Type: DelService, PrevFrontend: service.Frontend}
-        }
-    }
-
-    return nil
-}
-
-/*
  * Synchronize current state in etcd.
  *
  * Returns an atomic snapshot of the state in etcd, and sets the .syncIndex
  */
-func (self *Etcd) Scan() ([]Service, error) {
+func (self *Etcd) Scan() ([]*Service, error) {
     response, err := self.client.Get(self.config.Prefix, false, /* recursive */ true)
 
     if err != nil {
@@ -275,34 +229,40 @@ func (self *Etcd) Scan() ([]Service, error) {
     // XXX: is this enough to ensure atomic sync with later .Watch() on the same tree?
     self.syncIndex = response.EtcdIndex
 
-    return self.scan(response.Node), nil
-}
-
-func (self *Etcd) scan(rootNode *etcd.Node) []Service {
-    for _, node := range rootNode.Nodes {
+    for _, node := range response.Node.Nodes {
         name := path.Base(node.Key)
 
         if name == "services" && node.Dir {
-            for _, serviceNode := range node.Nodes {
-                service := self.scanService(serviceNode)
-
-                log.Printf("server:etcd.Scan %s: Service %+v\n", serviceNode.Key, service)
-
-                self.services[service.Name] = service
-            }
+            self.services = self.scanServices(response.Node)
         } else {
             log.Printf("server:etcd.Scan %s: Ignore unknown node\n", node.Key)
         }
     }
 
-    return self.Services()
+    if self.services != nil {
+        return self.services.Services(), nil
+    } else {
+        return nil, nil
+    }
 }
 
-func (self *Etcd) scanService(serviceNode *etcd.Node) Service {
-    service := Service{
-        Name:       path.Base(serviceNode.Key),
-        Servers:    make(map[string]ServiceServer),
+func (self *Etcd) scanServices(servicesNode *etcd.Node) *Services {
+    services := newServices()
+
+    for _, serviceNode := range servicesNode.Nodes {
+        service := self.scanService(serviceNode)
+
+        log.Printf("server:etcd.Scan %s: Service %+v\n", serviceNode.Key, service)
+
+        self.services.add(service)
     }
+
+    return services
+}
+
+func (self *Etcd) scanService(serviceNode *etcd.Node) *Service {
+    serviceName := path.Base(serviceNode.Key)
+    service := newService(serviceName)
 
     for _, node := range serviceNode.Nodes {
         name := path.Base(node.Key)
@@ -316,18 +276,18 @@ func (self *Etcd) scanService(serviceNode *etcd.Node) Service {
             } else {
                 log.Printf("server:etcd.scanService %s: Frontend:%+v\n", node.Key, service.Frontend)
             }
-        } else if name == "servers" && node.Dir {
-            for _, serverNode := range node.Nodes {
-                server := ServiceServer{}
-                serverName := path.Base(serverNode.Key)
+        } else if name == "backends" && node.Dir {
+            for _, backendNode := range node.Nodes {
+                backendName := path.Base(backendNode.Key)
+                backend := ServiceBackend{}
 
-                if err := server.loadEtcd(serverNode); err != nil {
-                    log.Printf("server:etcd.scanService %s: ServiceServer.loadEtcd %s: %s\n", serverNode.Key, serverName, err)
+                if err := backend.loadEtcd(backendNode); err != nil {
+                    log.Printf("server:etcd.scanService %s: ServiceBackend.loadEtcd %s: %s\n", backendNode.Key, backendName, err)
                     continue
                 } else {
-                    log.Printf("server:etcd.scanService %s: Server %s:%+v\n", serverNode.Key, serverName, server)
+                    log.Printf("server:etcd.scanService %s: Backend %s:%+v\n", serviceName, backendName, backend)
 
-                    service.Servers[serverName] = server
+                    service.Backends[backendName] = &backend // XXX: plant possible pointer-to-for-loop-struct-value-variable bug to discover via later testing
                 }
             }
         } else {
