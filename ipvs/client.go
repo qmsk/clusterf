@@ -60,7 +60,6 @@ func (client *Client) SetDebug() {
 type Request struct {
     Cmd     uint8
     Flags   uint16
-    Policy  nlgo.MapPolicy
     Attrs   nlgo.AttrList
 }
 
@@ -68,7 +67,7 @@ func (client *Client) send (request Request, seq uint32, flags uint16) error {
     var payload []byte
 
     if request.Attrs != nil {
-        payload = request.Policy.Bytes(request.Attrs)
+        payload = request.Attrs.Bytes()
     }
 
     buf := make([]byte, syscall.NLMSG_HDRLEN + nlgo.SizeofGenlMsghdr + len(payload))
@@ -227,21 +226,18 @@ func (client *Client) exec (request Request) error {
 }
 
 /* Return a request callback to parse return messages */
-func (client *Client) queryParser (cmd uint8, policy nlgo.MapPolicy, cb func(attrs nlgo.AttrList) error) (func (msg Message) error) {
+func (client *Client) queryParser (cmd uint8, policy nlgo.MapPolicy, cb func(attrs nlgo.AttrMap) error) (func (msg Message) error) {
     return func(msg Message) error {
         if msg.Nl.Type != client.genlFamily || msg.Genl.Cmd != cmd {
             return fmt.Errorf("ipvs:Client.queryParser: Unsupported response: %+v", msg)
         }
 
-        if attrs, err := policy.Parse(msg.GenlData); err != nil {
+        if attrsValue, err := policy.Parse(msg.GenlData); err != nil {
             return fmt.Errorf("ipvs:Client.queryParser: %s\n%s", err, hex.Dump(msg.GenlData))
+        } else if attrMap, ok := attrsValue.(nlgo.AttrMap); !ok {
+            return fmt.Errorf("ipvs:Client.queryParser: unexpected attrs value")
         } else {
-            return cb(attrs)
+            return cb(attrMap)
         }
     }
-}
-
-/* Helper to build an nlgo.Attr */
-func nlattr (typ uint16, value interface{}) nlgo.Attr {
-    return nlgo.Attr{Header: syscall.NlAttr{Type: typ}, Value: value}
 }

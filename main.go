@@ -203,7 +203,7 @@ func (self *ipvsState) syncService (service *server.Service, frontend *server.Se
     ipvsService := ipvs.Service{
         SchedName:  "wlc",
         Timeout:    0,
-        Flags:      ipvs.IPVSFlags{Flags: 0, Mask: 0xffffffff},
+        Flags:      ipvs.Flags{Flags: 0, Mask: 0xffffffff},
         Netmask:    0xffffffff,
     }
 

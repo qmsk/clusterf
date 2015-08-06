@@ -9,11 +9,6 @@ const (
     IPVS_GENL_VERSION   = 0x1
 )
 
-type IPVSFlags struct {
-    Flags   uint32
-    Mask    uint32
-}
-
 const (
 	IP_VS_SVC_F_PERSISTENT	= 0x0001      /* persistent port */
 	IP_VS_SVC_F_HASHED	= 0x0002      /* hashed entry */
@@ -172,16 +167,16 @@ var ipvs_stats_policy = nlgo.MapPolicy{
         IPVS_STATS_ATTR_OUTBPS: "OUTBPS",
     },
     Rule: map[uint16]nlgo.Policy{
-        IPVS_STATS_ATTR_CONNS:          nlgo.NLA_U32,
-        IPVS_STATS_ATTR_INPKTS:         nlgo.NLA_U32,
-        IPVS_STATS_ATTR_OUTPKTS:        nlgo.NLA_U32,
-        IPVS_STATS_ATTR_INBYTES:        nlgo.NLA_U64,
-        IPVS_STATS_ATTR_OUTBYTES:       nlgo.NLA_U64,
-        IPVS_STATS_ATTR_CPS:            nlgo.NLA_U32,
-        IPVS_STATS_ATTR_INPPS:          nlgo.NLA_U32,
-        IPVS_STATS_ATTR_OUTPPS:         nlgo.NLA_U32,
-        IPVS_STATS_ATTR_INBPS:          nlgo.NLA_U32,
-        IPVS_STATS_ATTR_OUTBPS:         nlgo.NLA_U32,
+        IPVS_STATS_ATTR_CONNS:          nlgo.U32Policy,
+        IPVS_STATS_ATTR_INPKTS:         nlgo.U32Policy,
+        IPVS_STATS_ATTR_OUTPKTS:        nlgo.U32Policy,
+        IPVS_STATS_ATTR_INBYTES:        nlgo.U64Policy,
+        IPVS_STATS_ATTR_OUTBYTES:       nlgo.U64Policy,
+        IPVS_STATS_ATTR_CPS:            nlgo.U32Policy,
+        IPVS_STATS_ATTR_INPPS:          nlgo.U32Policy,
+        IPVS_STATS_ATTR_OUTPPS:         nlgo.U32Policy,
+        IPVS_STATS_ATTR_INBPS:          nlgo.U32Policy,
+        IPVS_STATS_ATTR_OUTBPS:         nlgo.U32Policy,
     },
 }
 
@@ -201,15 +196,15 @@ var ipvs_service_policy = nlgo.MapPolicy{
         IPVS_SVC_ATTR_PE_NAME: "PE_NAME",
     },
     Rule: map[uint16]nlgo.Policy{
-        IPVS_SVC_ATTR_AF:               nlgo.NLA_U16,
-        IPVS_SVC_ATTR_PROTOCOL:         nlgo.NLA_U16,
-        IPVS_SVC_ATTR_ADDR:             nlgo.NLA_BINARY,        // struct in6_addr
-        IPVS_SVC_ATTR_PORT:             nlgo.NLA_U16,
-        IPVS_SVC_ATTR_FWMARK:           nlgo.NLA_U32,
-        IPVS_SVC_ATTR_SCHED_NAME:       nlgo.NLA_NUL_STRING,    // IP_VS_SCHEDNAME_MAXLEN
-        IPVS_SVC_ATTR_FLAGS:            nlgo.NLA_BINARY,        // struct ip_vs_flags
-        IPVS_SVC_ATTR_TIMEOUT:          nlgo.NLA_U32,
-        IPVS_SVC_ATTR_NETMASK:          nlgo.NLA_U32,
+        IPVS_SVC_ATTR_AF:               nlgo.U16Policy,
+        IPVS_SVC_ATTR_PROTOCOL:         nlgo.U16Policy,
+        IPVS_SVC_ATTR_ADDR:             nlgo.BinaryPolicy,        // struct in6_addr
+        IPVS_SVC_ATTR_PORT:             nlgo.U16Policy,
+        IPVS_SVC_ATTR_FWMARK:           nlgo.U32Policy,
+        IPVS_SVC_ATTR_SCHED_NAME:       nlgo.NulStringPolicy,    // IP_VS_SCHEDNAME_MAXLEN
+        IPVS_SVC_ATTR_FLAGS:            nlgo.BinaryPolicy,        // struct ip_vs_flags
+        IPVS_SVC_ATTR_TIMEOUT:          nlgo.U32Policy,
+        IPVS_SVC_ATTR_NETMASK:          nlgo.U32Policy,
         IPVS_SVC_ATTR_STATS:            ipvs_stats_policy,
     },
 }
@@ -229,15 +224,15 @@ var ipvs_dest_policy = nlgo.MapPolicy{
         IPVS_DEST_ATTR_STATS: "STATS",
     },
     Rule: map[uint16]nlgo.Policy{
-        IPVS_DEST_ATTR_ADDR:            nlgo.NLA_BINARY,        // struct in6_addr
-        IPVS_DEST_ATTR_PORT:            nlgo.NLA_U16,
-        IPVS_DEST_ATTR_FWD_METHOD:      nlgo.NLA_U32,
-        IPVS_DEST_ATTR_WEIGHT:          nlgo.NLA_U32,
-        IPVS_DEST_ATTR_U_THRESH:        nlgo.NLA_U32,
-        IPVS_DEST_ATTR_L_THRESH:        nlgo.NLA_U32,
-        IPVS_DEST_ATTR_ACTIVE_CONNS:    nlgo.NLA_U32,
-        IPVS_DEST_ATTR_INACT_CONNS:     nlgo.NLA_U32,
-        IPVS_DEST_ATTR_PERSIST_CONNS:   nlgo.NLA_U32,
+        IPVS_DEST_ATTR_ADDR:            nlgo.BinaryPolicy,        // struct in6_addr
+        IPVS_DEST_ATTR_PORT:            nlgo.U16Policy,
+        IPVS_DEST_ATTR_FWD_METHOD:      nlgo.U32Policy,
+        IPVS_DEST_ATTR_WEIGHT:          nlgo.U32Policy,
+        IPVS_DEST_ATTR_U_THRESH:        nlgo.U32Policy,
+        IPVS_DEST_ATTR_L_THRESH:        nlgo.U32Policy,
+        IPVS_DEST_ATTR_ACTIVE_CONNS:    nlgo.U32Policy,
+        IPVS_DEST_ATTR_INACT_CONNS:     nlgo.U32Policy,
+        IPVS_DEST_ATTR_PERSIST_CONNS:   nlgo.U32Policy,
         IPVS_DEST_ATTR_STATS:           ipvs_stats_policy,
     },
 }
@@ -250,9 +245,9 @@ var ipvs_daemon_policy = nlgo.MapPolicy{
         IPVS_DAEMON_ATTR_SYNC_ID: "SYNC_ID",
     },
     Rule: map[uint16]nlgo.Policy{
-        IPVS_DAEMON_ATTR_STATE:         nlgo.NLA_U32,
-        IPVS_DAEMON_ATTR_MCAST_IFN:     nlgo.NLA_STRING,  // maxlen = IP_VS_IFNAME_MAXLEN
-        IPVS_DAEMON_ATTR_SYNC_ID:       nlgo.NLA_U32,
+        IPVS_DAEMON_ATTR_STATE:         nlgo.U32Policy,
+        IPVS_DAEMON_ATTR_MCAST_IFN:     nlgo.StringPolicy,  // maxlen = IP_VS_IFNAME_MAXLEN
+        IPVS_DAEMON_ATTR_SYNC_ID:       nlgo.U32Policy,
     },
 }
 
@@ -270,9 +265,9 @@ var ipvs_cmd_policy = nlgo.MapPolicy{
         IPVS_CMD_ATTR_SERVICE:          ipvs_service_policy,
         IPVS_CMD_ATTR_DEST:             ipvs_dest_policy,
         IPVS_CMD_ATTR_DAEMON:           ipvs_daemon_policy,
-        IPVS_CMD_ATTR_TIMEOUT_TCP:      nlgo.NLA_U32,
-        IPVS_CMD_ATTR_TIMEOUT_TCP_FIN:  nlgo.NLA_U32,
-        IPVS_CMD_ATTR_TIMEOUT_UDP:      nlgo.NLA_U32,
+        IPVS_CMD_ATTR_TIMEOUT_TCP:      nlgo.U32Policy,
+        IPVS_CMD_ATTR_TIMEOUT_TCP_FIN:  nlgo.U32Policy,
+        IPVS_CMD_ATTR_TIMEOUT_UDP:      nlgo.U32Policy,
     },
 }
 
@@ -283,7 +278,7 @@ var ipvs_info_policy = nlgo.MapPolicy{
         IPVS_INFO_ATTR_CONN_TAB_SIZE: "CONN_TAB_SIZE",
     },
     Rule: map[uint16]nlgo.Policy{
-        IPVS_INFO_ATTR_VERSION:         nlgo.NLA_U32,
-        IPVS_INFO_ATTR_CONN_TAB_SIZE:   nlgo.NLA_U32,
+        IPVS_INFO_ATTR_VERSION:         nlgo.U32Policy,
+        IPVS_INFO_ATTR_CONN_TAB_SIZE:   nlgo.U32Policy,
     },
 }
