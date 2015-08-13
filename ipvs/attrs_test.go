@@ -44,10 +44,45 @@ func TestInfo (t *testing.T) {
     }
 }
 
-func TestService (t *testing.T) {
-    var service Service
+func testServiceEquals (t *testing.T, testService Service, service Service) {
+    if service.Af != testService.Af {
+        t.Errorf("fail Service.Af: %s", service.Af)
+    }
+    if service.Protocol != testService.Protocol {
+        t.Errorf("fail Service.Protocol: %s", service.Protocol)
+    }
+    if service.Addr.String() != testService.Addr.String() {
+        t.Errorf("fail Service.Addr: %s", service.Addr.String())
+    }
+    if service.Port != testService.Port {
+        t.Errorf("fail Service.Port: %s", service.Port)
+    }
+    if service.SchedName != testService.SchedName {
+        t.Errorf("fail Service.SchedName: %s", service.SchedName)
+    }
+    if service.Flags.Flags != testService.Flags.Flags || service.Flags.Mask != testService.Flags.Mask {
+        t.Errorf("fail Service.Flags: %+v", service.Flags)
+    }
+    if service.Timeout != testService.Timeout {
+        t.Errorf("fail Service.Timeout: %s", service.Timeout)
+    }
+    if service.Netmask != testService.Netmask {
+        t.Errorf("fail Service.Netmask: %s", service.Netmask)
+    }
+}
 
-    pkt := []byte{
+func TestService (t *testing.T) {
+    testService := Service {
+        Af:         syscall.AF_INET,        // 2
+        Protocol:   syscall.IPPROTO_TCP,    // 6
+        Addr:       net.ParseIP("10.107.107.0"),
+        Port:       1337,
+        SchedName:  "wlc",
+        Flags:      Flags{0, 0},
+        Timeout:    0,
+        Netmask:    0x00000000,
+    }
+    testBytes := []byte{
          0x06,0x00, 0x01,0x00, // IPVS_SVC_ATTR_AF
             0x02,0x00, 0x00,0x00, // 2
          0x06,0x00, 0x02,0x00, // IPVS_SVC_ATTR_PROTOCOL
@@ -59,43 +94,25 @@ func TestService (t *testing.T) {
          0x08,0x00, 0x08,0x00,   0x00,0x00,0x00,0x00,    // IPVS_SVC_ATTR_TIMEOUT    0
          0x08,0x00, 0x09,0x00,   0x00,0x00,0x00,0x00,    // IPVS_SVC_ATTR_NETMASK    0
     }
-    if attrs, err := ipvs_service_policy.Parse(pkt); err != nil {
+
+    // pack
+    packAttrs := testService.attrs(true)
+    packBytes := packAttrs.Bytes()
+
+    if !bytes.Equal(packBytes, testBytes) {
+        t.Errorf("fail Dest.attrs(): \n%s", hex.Dump(packBytes))
+    }
+
+    // unpack
+    var unpackService Service
+
+    if unpackAttrs, err := ipvs_service_policy.Parse(packBytes); err != nil {
         t.Fatalf("error ipvs_service_policy.Parse: %s", err)
-    } else if err := service.unpack(attrs.(nlgo.AttrMap)); err != nil {
+    } else if err := unpackService.unpack(unpackAttrs.(nlgo.AttrMap)); err != nil {
         t.Fatalf("error Service.unpack: %s", err)
     }
 
-    if service.Af != 2 {
-        t.Errorf("fail Service.Af: %s", service.Af)
-    }
-    if service.Protocol != 6 {
-        t.Errorf("fail Service.Protocol: %s", service.Protocol)
-    }
-    if service.Addr.String() != "10.107.107.0" {
-        t.Errorf("fail Service.Addr: %s", service.Addr)
-    }
-    if service.Port != 1337 {
-        t.Errorf("fail Service.Port: %s", service.Port)
-    }
-    if service.SchedName != "wlc" {
-        t.Errorf("fail Service.SchedName: %s", service.SchedName)
-    }
-    if service.Flags.Flags != 0 || service.Flags.Mask != 0 {
-        t.Errorf("fail Service.Flags: %+v", service.Flags)
-    }
-    if service.Timeout != 0 {
-        t.Errorf("fail Service.Timeout: %s", service.Timeout)
-    }
-    if service.Netmask != 0 {
-        t.Errorf("fail Service.Netmask: %s", service.Netmask)
-    }
-
-    outAttrs := service.attrs(true)
-    outPkt := outAttrs.Bytes()
-
-    if !bytes.Equal(outPkt, pkt) {
-        t.Errorf("error Service.attrs: \n%s", hex.Dump(outPkt))
-    }
+    testServiceEquals(t, testService, unpackService)
 }
 
 func testDestEquals (t *testing.T, testDest Dest, dest Dest) {
