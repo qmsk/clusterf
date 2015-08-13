@@ -70,10 +70,22 @@ func nlattr (typ uint16, value nlgo.NlaValue) nlgo.Attr {
     return nlgo.Attr{Header: syscall.NlAttr{Type: typ}, Value: value}
 }
 
+/* Helpers for struct <-> nlgo.Binary */
 func unpack(value nlgo.Binary, out interface{}) error {
     return binary.Read(bytes.NewReader(([]byte)(value)), binary.BigEndian, out)
 }
 
+func pack (in interface{}) nlgo.Binary {
+    var buf bytes.Buffer
+
+    if err := binary.Write(&buf, binary.BigEndian, in); err != nil {
+        panic(err)
+    }
+
+    return nlgo.Binary(buf.Bytes())
+}
+
+/* Helpers for net.IP <-> nlgo.Binary */
 func unpackAddr (value nlgo.Binary, af uint16) (net.IP, error) {
     buf := ([]byte)(value)
 
@@ -90,15 +102,6 @@ func unpackAddr (value nlgo.Binary, af uint16) (net.IP, error) {
     }
 }
 
-func pack (in interface{}) nlgo.Binary {
-    var buf bytes.Buffer
-
-    if err := binary.Write(&buf, binary.BigEndian, in); err != nil {
-        panic(err)
-    }
-
-    return nlgo.Binary(buf.Bytes())
-}
 
 func packAddr (af uint16, addr net.IP) nlgo.Binary {
     switch af {
@@ -109,6 +112,7 @@ func packAddr (af uint16, addr net.IP) nlgo.Binary {
     }
 }
 
+/* Helpers for uint16 port <-> nlgo.U16 */
 func htons (value uint16) uint16 {
     return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8)
 }
@@ -116,10 +120,14 @@ func ntohs (value uint16) uint16 {
     return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8)
 }
 
+func unpackPort (val nlgo.U16) uint16 {
+    return ntohs((uint16)(val))
+}
 func packPort (port uint16) nlgo.U16 {
     return nlgo.U16(htons(port))
 }
 
+// Info
 func (self *Info) unpack(attrs nlgo.AttrMap) error {
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
@@ -131,6 +139,7 @@ func (self *Info) unpack(attrs nlgo.AttrMap) error {
     return nil
 }
 
+// Service
 func (self *Service) unpack(attrs nlgo.AttrMap) error {
     var addr nlgo.Binary
     var flags nlgo.Binary
@@ -140,7 +149,7 @@ func (self *Service) unpack(attrs nlgo.AttrMap) error {
         case IPVS_SVC_ATTR_AF:          self.Af = (uint16)(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_PROTOCOL:    self.Protocol = (uint16)(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_ADDR:        addr = attr.Value.(nlgo.Binary)
-        case IPVS_SVC_ATTR_PORT:        self.Port = ntohs((uint16)(attr.Value.(nlgo.U16)))
+        case IPVS_SVC_ATTR_PORT:        self.Port = unpackPort(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_FWMARK:      self.FwMark = (uint32)(attr.Value.(nlgo.U32))
         case IPVS_SVC_ATTR_SCHED_NAME:  self.SchedName = (string)(attr.Value.(nlgo.NulString))
         case IPVS_SVC_ATTR_FLAGS:       flags = attr.Value.(nlgo.Binary)
@@ -162,6 +171,8 @@ func (self *Service) unpack(attrs nlgo.AttrMap) error {
     return nil
 }
 
+// Pack Service to a set of nlattrs.
+// If full is given, include service settings, otherwise only the identifying fields are given.
 func (self *Service) attrs(full bool) nlgo.AttrSlice {
     var attrs nlgo.AttrSlice
 
@@ -193,13 +204,14 @@ func (self *Service) attrs(full bool) nlgo.AttrSlice {
     return attrs
 }
 
+// Set Dest from nl attrs
 func (self *Dest) unpack(service Service, attrs nlgo.AttrMap) error {
     var addr []byte
 
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
         case IPVS_DEST_ATTR_ADDR:       addr = ([]byte)(attr.Value.(nlgo.Binary))
-        case IPVS_DEST_ATTR_PORT:       self.Port = ntohs((uint16)(attr.Value.(nlgo.U16)))
+        case IPVS_DEST_ATTR_PORT:       self.Port = unpackPort(attr.Value.(nlgo.U16))
         case IPVS_DEST_ATTR_FWD_METHOD: self.FwdMethod = (uint32)(attr.Value.(nlgo.U32))
         case IPVS_DEST_ATTR_WEIGHT:     self.Weight = (uint32)(attr.Value.(nlgo.U32))
         case IPVS_DEST_ATTR_U_THRESH:   self.UThresh = (uint32)(attr.Value.(nlgo.U32))
@@ -219,6 +231,8 @@ func (self *Dest) unpack(service Service, attrs nlgo.AttrMap) error {
     return nil
 }
 
+// Dump Dest as nl attrs, using the Af of the corresponding Service.
+// If full, includes Dest setting attrs, otherwise only identifying attrs.
 func (self *Dest) attrs(service *Service, full bool) nlgo.AttrSlice {
     var attrs nlgo.AttrSlice
 
