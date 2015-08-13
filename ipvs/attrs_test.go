@@ -25,22 +25,21 @@ func TestVersion (t *testing.T) {
 }
 
 func TestInfo (t *testing.T) {
-    var info Info
-    attrs := nlgo.AttrMap{Policy: ipvs_info_policy, AttrSlice: nlgo.AttrSlice{
+    testAttrs := nlgo.AttrMap{Policy: ipvs_info_policy, AttrSlice: nlgo.AttrSlice{
         {Header: syscall.NlAttr{Type: IPVS_INFO_ATTR_VERSION}, Value: nlgo.U32(0x00010203)},
         {Header: syscall.NlAttr{Type: IPVS_INFO_ATTR_CONN_TAB_SIZE}, Value: nlgo.U32(4096)},
     }}
 
-    if err := info.unpack(attrs); err != nil {
+    if info, err := unpackInfo(testAttrs); err != nil {
         t.Errorf("error Info.unpack(): %s", err)
-    }
+    } else {
+        if info.Version.String() != "1.2.3" {
+            t.Errorf("fail Info.Version: %s != 1.2.3", info.Version.String())
+        }
 
-    if info.Version.String() != "1.2.3" {
-        t.Errorf("fail Info.Version: %s != 1.2.3", info.Version.String())
-    }
-
-    if info.ConnTabSize != 4096 {
-        t.Errorf("fail Info.ConnTabSize: %s != 4096", info.ConnTabSize)
+        if info.ConnTabSize != 4096 {
+            t.Errorf("fail Info.ConnTabSize: %s != 4096", info.ConnTabSize)
+        }
     }
 }
 
@@ -104,15 +103,13 @@ func TestService (t *testing.T) {
     }
 
     // unpack
-    var unpackService Service
-
-    if unpackAttrs, err := ipvs_service_policy.Parse(packBytes); err != nil {
+    if unpackedAttrs, err := ipvs_service_policy.Parse(packBytes); err != nil {
         t.Fatalf("error ipvs_service_policy.Parse: %s", err)
-    } else if err := unpackService.unpack(unpackAttrs.(nlgo.AttrMap)); err != nil {
-        t.Fatalf("error Service.unpack: %s", err)
+    } else if unpackedService, err := unpackService(unpackedAttrs.(nlgo.AttrMap)); err != nil {
+        t.Fatalf("error unpackService: %s", err)
+    } else {
+        testServiceEquals(t, testService, unpackedService)
     }
-
-    testServiceEquals(t, testService, unpackService)
 }
 
 func testDestEquals (t *testing.T, testDest Dest, dest Dest) {
@@ -167,13 +164,11 @@ func TestDest (t *testing.T) {
     }
 
     // unpack
-    var unpackDest Dest
-
-    if unpackAttrs, err := ipvs_dest_policy.Parse(packBytes); err != nil {
+    if unpackedAttrs, err := ipvs_dest_policy.Parse(packBytes); err != nil {
         t.Fatalf("error ipvs_dest_policy.Parse: %s", err)
-    } else if err := unpackDest.unpack(testService, unpackAttrs.(nlgo.AttrMap)); err != nil {
-        t.Fatalf("error Service.unpack: %s", err)
+    } else if unpackedDest, err := unpackDest(testService, unpackedAttrs.(nlgo.AttrMap)); err != nil {
+        t.Fatalf("error unpackDest: %s", err)
+    } else {
+        testDestEquals(t, testDest, unpackedDest)
     }
-
-    testDestEquals(t, testDest, unpackDest)
 }

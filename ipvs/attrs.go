@@ -138,47 +138,49 @@ func packPort (port uint16) nlgo.U16 {
 }
 
 // Info
-func (self *Info) unpack(attrs nlgo.AttrMap) error {
+func unpackInfo(attrs nlgo.AttrMap) (info Info, err error) {
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
-        case IPVS_INFO_ATTR_VERSION: self.Version = (Version)(attr.Value.(nlgo.U32))
-        case IPVS_INFO_ATTR_CONN_TAB_SIZE: self.ConnTabSize = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_INFO_ATTR_VERSION:        info.Version = (Version)(attr.Value.(nlgo.U32))
+        case IPVS_INFO_ATTR_CONN_TAB_SIZE:  info.ConnTabSize = (uint32)(attr.Value.(nlgo.U32))
         }
     }
 
-    return nil
+    return
 }
 
 // Service
-func (self *Service) unpack(attrs nlgo.AttrMap) error {
+func unpackService(attrs nlgo.AttrMap) (Service, error) {
+    var service Service
+
     var addr nlgo.Binary
     var flags nlgo.Binary
 
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
-        case IPVS_SVC_ATTR_AF:          self.Af = (uint16)(attr.Value.(nlgo.U16))
-        case IPVS_SVC_ATTR_PROTOCOL:    self.Protocol = (uint16)(attr.Value.(nlgo.U16))
+        case IPVS_SVC_ATTR_AF:          service.Af = (uint16)(attr.Value.(nlgo.U16))
+        case IPVS_SVC_ATTR_PROTOCOL:    service.Protocol = (uint16)(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_ADDR:        addr = attr.Value.(nlgo.Binary)
-        case IPVS_SVC_ATTR_PORT:        self.Port = unpackPort(attr.Value.(nlgo.U16))
-        case IPVS_SVC_ATTR_FWMARK:      self.FwMark = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_SVC_ATTR_SCHED_NAME:  self.SchedName = (string)(attr.Value.(nlgo.NulString))
+        case IPVS_SVC_ATTR_PORT:        service.Port = unpackPort(attr.Value.(nlgo.U16))
+        case IPVS_SVC_ATTR_FWMARK:      service.FwMark = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_SVC_ATTR_SCHED_NAME:  service.SchedName = (string)(attr.Value.(nlgo.NulString))
         case IPVS_SVC_ATTR_FLAGS:       flags = attr.Value.(nlgo.Binary)
-        case IPVS_SVC_ATTR_TIMEOUT:     self.Timeout = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_SVC_ATTR_NETMASK:     self.Netmask = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_SVC_ATTR_TIMEOUT:     service.Timeout = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_SVC_ATTR_NETMASK:     service.Netmask = (uint32)(attr.Value.(nlgo.U32))
         }
     }
 
-    if addrIP, err := unpackAddr(addr, self.Af); err != nil {
-        return fmt.Errorf("ipvs:Service.unpack: addr: %s", err)
+    if addrIP, err := unpackAddr(addr, service.Af); err != nil {
+        return service, fmt.Errorf("ipvs:Service.unpack: addr: %s", err)
     } else {
-        self.Addr = addrIP
+        service.Addr = addrIP
     }
 
-    if err := unpack(flags, &self.Flags); err != nil {
-        return fmt.Errorf("ipvs:Service.unpack: flags: %s", err)
+    if err := unpack(flags, &service.Flags); err != nil {
+        return service, fmt.Errorf("ipvs:Service.unpack: flags: %s", err)
     }
 
-    return nil
+    return service, nil
 }
 
 // Pack Service to a set of nlattrs.
@@ -215,30 +217,31 @@ func (self *Service) attrs(full bool) nlgo.AttrSlice {
 }
 
 // Set Dest from nl attrs
-func (self *Dest) unpack(service Service, attrs nlgo.AttrMap) error {
+func unpackDest(service Service, attrs nlgo.AttrMap) (Dest, error) {
+    var dest Dest
     var addr []byte
 
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
         case IPVS_DEST_ATTR_ADDR:       addr = ([]byte)(attr.Value.(nlgo.Binary))
-        case IPVS_DEST_ATTR_PORT:       self.Port = unpackPort(attr.Value.(nlgo.U16))
-        case IPVS_DEST_ATTR_FWD_METHOD: self.FwdMethod = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_WEIGHT:     self.Weight = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_U_THRESH:   self.UThresh = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_L_THRESH:   self.LThresh = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_ACTIVE_CONNS:   self.ActiveConns = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_INACT_CONNS:    self.InactConns = (uint32)(attr.Value.(nlgo.U32))
-        case IPVS_DEST_ATTR_PERSIST_CONNS:  self.PersistConns = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_PORT:       dest.Port = unpackPort(attr.Value.(nlgo.U16))
+        case IPVS_DEST_ATTR_FWD_METHOD: dest.FwdMethod = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_WEIGHT:     dest.Weight = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_U_THRESH:   dest.UThresh = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_L_THRESH:   dest.LThresh = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_ACTIVE_CONNS:   dest.ActiveConns = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_INACT_CONNS:    dest.InactConns = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_PERSIST_CONNS:  dest.PersistConns = (uint32)(attr.Value.(nlgo.U32))
         }
     }
 
     if addrIP, err := unpackAddr(addr, service.Af); err != nil {
-        return fmt.Errorf("ipvs:Dest.unpack: addr: %s", err)
+        return dest, fmt.Errorf("ipvs:Dest.unpack: addr: %s", err)
     } else {
-        self.Addr = addrIP
+        dest.Addr = addrIP
     }
 
-    return nil
+    return dest, nil
 }
 
 // Dump Dest as nl attrs, using the Af of the corresponding Service.
@@ -263,30 +266,48 @@ func (self *Dest) attrs(service *Service, full bool) nlgo.AttrSlice {
     return attrs
 }
 
-type cmd struct {
-    serviceId   *Service
-    serviceFull *Service
+type command struct {
+    service     *Service
+    serviceFull bool
 
-    destId      *Dest
-    destFull    *Dest
+    dest        *Dest
+    destFull    bool
 }
 
-func (self cmd) attrs() nlgo.AttrList {
+func (self command) attrs() nlgo.AttrSlice {
     var attrs nlgo.AttrSlice
 
-    if self.serviceId != nil {
-        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceId.attrs(false)))
-    }
-    if self.serviceFull != nil {
-        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.serviceFull.attrs(true)))
+    if self.service != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.service.attrs(self.serviceFull)))
     }
 
-    if self.destId != nil {
-        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.destId.attrs(self.serviceId, false)))
-    }
-    if self.destFull != nil {
-        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.destFull.attrs(self.serviceId, true)))
+    if self.dest != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.dest.attrs(self.service, self.destFull)))
     }
 
     return attrs
+}
+
+func unpackCommand(attrs nlgo.AttrMap) (command, error) {
+    var command command
+
+    for _, attr := range attrs.Slice() {
+        switch attr.Field() {
+        case IPVS_CMD_ATTR_SERVICE:
+            if service, err := unpackService(attr.Value.(nlgo.AttrMap)); err != nil {
+                return command, err
+            } else {
+                command.service = &service
+            }
+        case IPVS_CMD_ATTR_DEST:
+            // TODO: ordering
+            if dest, err := unpackDest(*command.service, attr.Value.(nlgo.AttrMap)); err != nil {
+                return command, err
+            } else {
+                command.dest = &dest
+            }
+        }
+    }
+
+    return command, nil
 }
