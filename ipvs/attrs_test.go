@@ -98,11 +98,32 @@ func TestService (t *testing.T) {
     }
 }
 
+func testDestEquals (t *testing.T, testDest Dest, dest Dest) {
+    if dest.Addr.String() != testDest.Addr.String() {
+        t.Errorf("fail testDest.unpack(): Addr %v", dest.Addr.String())
+    }
+    if dest.Port != testDest.Port {
+        t.Errorf("fail testDest.unpack(): Port %v", dest.Port)
+    }
+    if dest.FwdMethod != testDest.FwdMethod {
+        t.Errorf("fail testDest.unpack(): FwdMethod %v", dest.FwdMethod)
+    }
+    if dest.Weight != testDest.Weight {
+        t.Errorf("fail testDest.unpack(): Weight %v", dest.Weight)
+    }
+    if dest.UThresh != testDest.UThresh {
+        t.Errorf("fail testDest.unpack(): UThresh %v", dest.UThresh)
+    }
+    if dest.LThresh != testDest.LThresh {
+        t.Errorf("fail testDest.unpack(): LThresh %v", dest.LThresh)
+    }
+}
+
 func TestDest (t *testing.T) {
-    service := Service {
+    testService := Service {
         Af:     syscall.AF_INET,
     }
-    dest := Dest{
+    testDest := Dest{
         Addr:   net.ParseIP("10.107.107.0"),
         Port:   1337,
 
@@ -111,7 +132,7 @@ func TestDest (t *testing.T) {
         UThresh:    1000,
         LThresh:    0,
     }
-    attrs := nlgo.AttrSlice{
+    testAttrs := nlgo.AttrSlice{
         nlattr(IPVS_DEST_ATTR_ADDR, nlgo.Binary([]byte{0x0a, 0x6b, 0x6b, 0x00})),
         nlattr(IPVS_DEST_ATTR_PORT, nlgo.U16(0x3905)),
         nlattr(IPVS_DEST_ATTR_FWD_METHOD, nlgo.U32(IP_VS_CONN_F_TUNNEL)),
@@ -121,35 +142,21 @@ func TestDest (t *testing.T) {
     }
 
     // pack
-    testAttrs := dest.attrs(&service, true)
+    packAttrs := testDest.attrs(&testService, true)
+    packBytes := packAttrs.Bytes()
 
-    if !bytes.Equal(testAttrs.Bytes(), attrs.Bytes()) {
-        t.Errorf("fail Dest.attrs(): \n%s", hex.Dump(testAttrs.Bytes()))
+    if !bytes.Equal(packBytes, testAttrs.Bytes()) {
+        t.Errorf("fail Dest.attrs(): \n%s", hex.Dump(packBytes))
     }
 
     // unpack
-    var testDest Dest
+    var unpackDest Dest
 
-    if err := testDest.unpack(service, nlgo.AttrMap{Policy: ipvs_dest_policy, AttrSlice: attrs}); err != nil {
-        t.Fatalf("error Dest.unpack(): %s", err)
+    if unpackAttrs, err := ipvs_dest_policy.Parse(packBytes); err != nil {
+        t.Fatalf("error ipvs_dest_policy.Parse: %s", err)
+    } else if err := unpackDest.unpack(testService, unpackAttrs.(nlgo.AttrMap)); err != nil {
+        t.Fatalf("error Service.unpack: %s", err)
     }
 
-    if testDest.Addr.String() != dest.Addr.String() {
-        t.Errorf("fail Dest.unpack(): Addr %v", testDest.Addr.String())
-    }
-    if testDest.Port != dest.Port {
-        t.Errorf("fail Dest.unpack(): Port %v", testDest.Port)
-    }
-    if testDest.FwdMethod != dest.FwdMethod {
-        t.Errorf("fail Dest.unpack(): FwdMethod %v", testDest.FwdMethod)
-    }
-    if testDest.Weight != dest.Weight {
-        t.Errorf("fail Dest.unpack(): Weight %v", testDest.Weight)
-    }
-    if testDest.UThresh != dest.UThresh {
-        t.Errorf("fail Dest.unpack(): UThresh %v", testDest.UThresh)
-    }
-    if testDest.LThresh != dest.LThresh {
-        t.Errorf("fail Dest.unpack(): LThresh %v", testDest.LThresh)
-    }
+    testDestEquals(t, testDest, unpackDest)
 }
