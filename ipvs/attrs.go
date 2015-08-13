@@ -88,28 +88,38 @@ func pack (in interface{}) nlgo.Binary {
 /* Helpers for net.IP <-> nlgo.Binary */
 func unpackAddr (value nlgo.Binary, af uint16) (net.IP, error) {
     buf := ([]byte)(value)
+    size := 0
 
-    // XXX: validate length?
     switch af {
-    case syscall.AF_INET:
-        return (net.IP)(buf[:4]), nil
-
-    case syscall.AF_INET6:
-        return (net.IP)(buf[:16]), nil
-
+    case syscall.AF_INET:       size = 4
+    case syscall.AF_INET6:      size = 16
     default:
         return nil, fmt.Errorf("ipvs: unknown af=%d addr=%v", af, buf)
     }
+
+    if size > len(buf) {
+        return nil, fmt.Errorf("ipvs: short af=%d addr=%v", af, buf)
+    }
+
+    return (net.IP)(buf[:size]), nil
 }
 
 
 func packAddr (af uint16, addr net.IP) nlgo.Binary {
+    var ip net.IP
+
     switch af {
-        case syscall.AF_INET:   return (nlgo.Binary)(addr.To4())
-        case syscall.AF_INET6:  return (nlgo.Binary)(addr.To16())
+        case syscall.AF_INET:   ip = addr.To4()
+        case syscall.AF_INET6:  ip = addr.To16()
         default:
             panic(fmt.Errorf("ipvs:packAddr: unknown af=%d addr=%v", af, addr))
     }
+
+    if ip == nil {
+        panic(fmt.Errorf("ipvs:packAddr: invalid af=%d addr=%v", af, addr))
+    }
+
+    return (nlgo.Binary)(ip)
 }
 
 /* Helpers for uint16 port <-> nlgo.U16 */

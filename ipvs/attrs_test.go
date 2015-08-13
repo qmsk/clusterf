@@ -138,10 +138,10 @@ func testDestEquals (t *testing.T, testDest Dest, dest Dest) {
 
 func TestDest (t *testing.T) {
     testService := Service {
-        Af:     syscall.AF_INET,
+        Af:     syscall.AF_INET6,
     }
     testDest := Dest{
-        Addr:   net.ParseIP("10.107.107.0"),
+        Addr:   net.ParseIP("2001:db8:6b:6b::0"),
         Port:   1337,
 
         FwdMethod:  IP_VS_CONN_F_TUNNEL,
@@ -150,7 +150,7 @@ func TestDest (t *testing.T) {
         LThresh:    0,
     }
     testAttrs := nlgo.AttrSlice{
-        nlattr(IPVS_DEST_ATTR_ADDR, nlgo.Binary([]byte{0x0a, 0x6b, 0x6b, 0x00})),
+        nlattr(IPVS_DEST_ATTR_ADDR, nlgo.Binary([]byte{0x20, 0x01, 0x0d, 0xb8, 0x00, 0x6b, 0x00, 0x6b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})),
         nlattr(IPVS_DEST_ATTR_PORT, nlgo.U16(0x3905)),
         nlattr(IPVS_DEST_ATTR_FWD_METHOD, nlgo.U32(IP_VS_CONN_F_TUNNEL)),
         nlattr(IPVS_DEST_ATTR_WEIGHT, nlgo.U32(10)),
