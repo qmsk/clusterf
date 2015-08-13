@@ -367,6 +367,8 @@ func main() {
 
     if err := self.ipvs.client.Flush(); err != nil {
         log.Fatalf("ipvs.Flush: %v\n", err)
+    } else {
+        log.Printf("ipvs.Flush")
     }
 
     // etcd
@@ -379,8 +381,10 @@ func main() {
 
         // start
         if services, err := self.etcd.Scan(); err != nil {
-            log.Fatalf("etcd.Sync: %s\n", err)
+            log.Fatalf("etcd.Scan: %s\n", err)
         } else {
+            log.Printf("etcd.Scan: %d services\n", len(services))
+
             // iterate initial set of services
             for _, service := range services {
                 self.ipvs.syncService(service, service.Frontend)
@@ -388,6 +392,8 @@ func main() {
         }
 
         // read channel for changes
+        log.Printf("etcd.Sync...\n")
+
         for event := range self.etcd.Sync() {
             log.Printf("etcd.Sync: %+v\n", event)
             switch event.Type {
