@@ -40,6 +40,11 @@ type Config interface {
 
 }
 
+/* Different config objects */
+
+// Used when a new service directory is created or destroyed.
+// May not necessarily be delivered when a new service is created; you can expect to directly get a ConfigService* event for a new service
+// May be delievered with an empty ServiceName:"" if *all* services are to be deleted
 type ConfigService struct {
     ServiceName     string
 }
@@ -50,6 +55,7 @@ type ConfigServiceFrontend struct {
     Frontend        ServiceFrontend
 }
 
+// May be delivered with an empty BackendName:"" if *all* service backends are to be deleted
 type ConfigServiceBackend struct {
     ServiceName     string
     BackendName     string
