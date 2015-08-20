@@ -45,6 +45,9 @@ type Event struct {
 
     /*
      * The service in its updated state after the event.
+     *
+     * XXX: this is not safe across goroutines; the Service might be updated before this Event is processed
+     *      needs to be replaced with ServiceName, and then *something* for NewService .Backends
      */
     Service         *Service
 
