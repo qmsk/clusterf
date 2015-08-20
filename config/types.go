@@ -23,6 +23,8 @@ type ServiceBackend struct {
 type Action string
 
 const (
+    // NOTE: all etcd.Sync() updates are SetConfig
+    //       NewConfig can be used together with Scan()...?
     NewConfig     Action   = "new"
     SetConfig     Action   = "set"
     DelConfig     Action   = "del"

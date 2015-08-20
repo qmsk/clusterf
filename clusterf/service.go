@@ -45,7 +45,9 @@ func (self *Service) configFrontend(action config.Action, frontendConfig *config
         self.Frontend = &frontend // XXX: copy?
 
     case config.SetConfig:
-        if *self.Frontend != frontend {
+        if self.Frontend == nil {
+            self.newFrontend(frontend)
+        } else if *self.Frontend != frontend {
             self.setFrontend(frontend)
         }
 
@@ -97,8 +99,11 @@ func (self *Service) newFrontend(frontend config.ServiceFrontend) {
 func (self *Service) setFrontend(frontend config.ServiceFrontend) {
     log.Printf("clusterf:Service %s: set Frontend: %+v\n", self.Name, frontend)
 
-    // TODO: something more smooth...
-    self.delFrontend()
+    if self.Frontend != nil {
+        // TODO: something more smooth...
+        self.delFrontend()
+    }
+
     self.newFrontend(frontend)
 }
 
@@ -125,7 +130,9 @@ func (self *Service) newBackend(backendName string, backend config.ServiceBacken
 func (self *Service) setBackend(backendName string, backend config.ServiceBackend) {
     log.Printf("clusterf:Service %s: set Backend %s: %+v\n", self.Name, backendName, backend)
 
-    if err := self.driverBackends[backendName].set(backend); err != nil {
+    if driverBackend := self.driverBackends[backendName]; driverBackend == nil {
+        self.newBackend(backendName, backend)
+    } else if err := driverBackend.set(backend); err != nil {
         self.driverError(err)
     }
 }
