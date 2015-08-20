@@ -1,4 +1,4 @@
-package server
+package config
 
 import (
     "github.com/coreos/go-etcd/etcd"
@@ -20,8 +20,6 @@ type Etcd struct {
 
     syncIndex   uint64
     watchChan   chan Event
-
-    services    *Services
 }
 
 func (self *Etcd) String() string {
@@ -61,7 +59,7 @@ func (self *Etcd) Init() error {
  *
  * Stores the current etcd-index from the snapshot in .syncIndex, so that .Sync() can be used to continue updating any changes.
  */
-func (self *Etcd) Scan() ([]*Service, error) {
+func (self *Etcd) Scan() ([]Config, error) {
     response, err := self.client.Get(self.config.Prefix, false, /* recursive */ true)
 
     if err != nil {
@@ -83,21 +81,24 @@ func (self *Etcd) Scan() ([]*Service, error) {
     // we assume this enough to ensure atomic sync with .Watch() on the same tree..
     self.syncIndex = response.EtcdIndex
 
-    for _, node := range response.Node.Nodes {
+    return self.scan(response.Node), nil
+}
+
+// Scan through the recursive /clusterf node to return ConfigItem's
+func (self *Etcd) scan(rootNode *etcd.Node) (configs []Config) {
+    for _, node := range rootNode.Nodes {
         name := path.Base(node.Key)
 
         if name == "services" && node.Dir {
-            self.services = self.scanServices(node)
+            self.scanServices(node, func (config Config) {
+                configs = append(configs, config)
+            })
         } else {
             log.Printf("server:etcd.Scan %s: Ignore unknown node\n", node.Key)
         }
     }
 
-    if self.services != nil {
-        return self.services.Services(), nil
-    } else {
-        return nil, nil
-    }
+    return
 }
 
 /*
@@ -116,9 +117,7 @@ func (self *Etcd) Sync() chan Event {
     return self.watchChan
 }
 
-/*
- * Watch etcd for changes, and sync them.
- */
+// Watch etcd for changes, and sync them
 func (self *Etcd) watch() {
     defer close(self.watchChan)
 
@@ -138,18 +137,61 @@ func (self *Etcd) watch() {
         }
 
         // sync to update services state and generate watchEvent()'s
-        if err := self.sync(response.Action, response.Node, self.watchEvent); err != nil {
+        if event, err := self.sync(response.Action, response.Node); err != nil {
             log.Printf("server:etcd.sync: %s\n", err)
             continue
+        } else if event != nil {
+            self.watchChan <- *event
         }
     }
 }
 
-/*
- * Publish a watch event
- */
-func (self *Etcd) watchEvent(event *Event) {
-    if event != nil {
-        self.watchChan <- *event
+// Handle changed node
+func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
+    // decode action
+    eventAction := func()Action{ switch action {
+    case "create":
+        return NewConfig
+
+    case "set":
+        return SetConfig
+
+    case "delete", "expire":
+        return DelConfig
+
+    default:
+        panic(fmt.Errorf("Unknown etcd action: %s", action))
+
+    } }()
+
+
+    // decode etcd path into config tree path
+    path := node.Key
+
+    if strings.HasPrefix(path, self.config.Prefix) {
+        path = strings.TrimPrefix(path, self.config.Prefix)
+    } else {
+        return nil, fmt.Errorf("path outside tree: %s", path)
+    }
+    path = strings.Trim(path, "/")
+
+    log.Printf("etcd:sync: %s %v\n", action, path)
+
+    nodePath := strings.Split(path, "/")
+
+    if len(path) == 0 {
+        // Split("", "/") would give [""]
+        nodePath = nil
+    }
+
+    // match
+    if config, err := self.syncPath(nodePath, node); err != nil {
+        log.Printf("server:etcd.sync %s %s: %s\n", action, path, err)
+        return nil, err
+    } else if config != nil {
+        log.Printf("server:etcd.sync %s %s: %s %+v\n", action, path, eventAction, config)
+        return &Event{Action: eventAction, Config: config}, nil
+    } else {
+        return nil, nil
     }
 }
