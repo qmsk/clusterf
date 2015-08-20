@@ -45,6 +45,14 @@ type Service struct {
     Netmask     uint32
 }
 
+func (self Service) String() string {
+    if self.FwMark == 0 {
+        return fmt.Sprintf("%d-%d://%s:%d", self.Af, self.Protocol, self.Addr, self.Port)
+    } else {
+        return fmt.Sprintf("%d-fwmark://#%d", self.Af, self.FwMark)
+    }
+}
+
 type Dest struct {
     // id
     // TODO: IPVS_DEST_ATTR_ADDR_FAMILY
@@ -62,8 +70,6 @@ type Dest struct {
     InactConns      uint32
     PersistConns    uint32
 }
-
-
 
 /* Helper to build an nlgo.Attr */
 func nlattr (typ uint16, value nlgo.NlaValue) nlgo.Attr {
