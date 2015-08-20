@@ -111,7 +111,7 @@ func TestSync(t *testing.T) {
             t.Errorf("fail %+v: error nil", testCase)
         }
 
-        for i := 0; i < len(events) && i < len(testCase.events); i++ {
+        for i := 0; i < len(events) || i < len(testCase.events); i++ {
             if i >= len(events) {
                 t.Errorf("fail %+v: missing event %+v", testCase, testCase.events[i])
             } else if i >= len(testCase.events) {
@@ -122,16 +122,11 @@ func TestSync(t *testing.T) {
                 }
 
                 if events[i].Service == nil {
-                    // XXX: srs?
-                    if testCase.events[i].Service != nil {
-                        t.Errorf("fail %+v: event %+v service", testCase, events[i])
-                    }
+                    t.Errorf("fail %+v: event %+v service", testCase, events[i])
                 } else if events[i].Service.Name != testCase.events[i].Service.Name {
                     t.Errorf("fail %+v: event %+v service name", testCase, events[i])
                 }
             }
         }
-
-        // t.Logf("ok %+v", testCase)
     }
 }
