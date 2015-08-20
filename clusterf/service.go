@@ -24,6 +24,7 @@ func newService(name string, driver *IPVSDriver) *Service {
         Backends:       make(map[string]config.ServiceBackend),
 
         driverFrontend: driver.newFrontend(),
+        driverBackends: make(map[string]*ipvsBackend),
     }
 }
 
@@ -82,6 +83,8 @@ func (self *Service) configBackend(backendName string, action config.Action, bac
 
 /* Frontend actions */
 func (self *Service) newFrontend(frontend config.ServiceFrontend) {
+    log.Printf("clusterf:Service %s: new Frontend: %+v\n", self.Name, frontend)
+
     if err := self.driverFrontend.add(frontend); err != nil {
         self.driverError(err)
     } else {
@@ -92,12 +95,16 @@ func (self *Service) newFrontend(frontend config.ServiceFrontend) {
 }
 
 func (self *Service) setFrontend(frontend config.ServiceFrontend) {
+    log.Printf("clusterf:Service %s: set Frontend: %+v\n", self.Name, frontend)
+
     // TODO: something more smooth...
     self.delFrontend()
     self.newFrontend(frontend)
 }
 
 func (self *Service) delFrontend() {
+    log.Printf("clusterf:Service %s: del Frontend: %+v\n", self.Name, self.Frontend)
+
     // del'ing the frontend will also remove all backend state
     if err := self.driverFrontend.del(); err != nil {
         self.driverError(err)
@@ -105,24 +112,30 @@ func (self *Service) delFrontend() {
 }
 
 /* Backend actions */
-func (self *Service) newBackend(name string, backend config.ServiceBackend) {
-    self.driverBackends[name] = self.driverFrontend.newBackend()
+func (self *Service) newBackend(backendName string, backend config.ServiceBackend) {
+    log.Printf("clusterf:Service %s: new Backend %s: %+v\n", self.Name, backendName, backend)
 
-    if err := self.driverBackends[name].add(backend); err != nil {
+    self.driverBackends[backendName] = self.driverFrontend.newBackend()
+
+    if err := self.driverBackends[backendName].add(backend); err != nil {
         self.driverError(err)
     }
 }
 
-func (self *Service) setBackend(name string, backend config.ServiceBackend) {
-    if err := self.driverBackends[name].set(backend); err != nil {
+func (self *Service) setBackend(backendName string, backend config.ServiceBackend) {
+    log.Printf("clusterf:Service %s: set Backend %s: %+v\n", self.Name, backendName, backend)
+
+    if err := self.driverBackends[backendName].set(backend); err != nil {
         self.driverError(err)
     }
 }
 
-func (self *Service) delBackend(name string) {
-    if err := self.driverBackends[name].del(); err != nil {
+func (self *Service) delBackend(backendName string) {
+    log.Printf("clusterf:Service %s: del Backend %s: %+v\n", self.Name, backendName, self.Backends[backendName])
+
+    if err := self.driverBackends[backendName].del(); err != nil {
         self.driverError(err)
     }
 
-    delete(self.driverBackends, name)
+    delete(self.driverBackends, backendName)
 }
