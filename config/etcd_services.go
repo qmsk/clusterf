@@ -27,21 +27,21 @@ func (self *Etcd) scanServices(servicesNode *etcd.Node, configHandler func(confi
     for _, serviceNode := range servicesNode.Nodes {
         serviceName := path.Base(serviceNode.Key)
 
-        log.Printf("server:etcd.Scan %s: Service %s\n", serviceNode.Key, serviceName)
+        log.Printf("config:etcd.scan %s: Service %s\n", serviceNode.Key, serviceName)
+
+        configHandler(&ConfigService{
+            ServiceName: serviceName,
+        })
 
         for _, node := range serviceNode.Nodes {
             name := path.Base(node.Key)
 
-            configHandler(&ConfigService{
-                ServiceName: serviceName,
-            })
-
             if name == "frontend" {
                 if frontend, err := loadEtcdServiceFrontend(node); err != nil {
-                    log.Printf("server:etcd.scanService %s: loadEtcdServiceFrontend: %s\n", node.Key, err)
+                    log.Printf("config:etcd.scan %s: loadEtcdServiceFrontend: %s\n", node.Key, err)
                     continue
                 } else {
-                    log.Printf("server:etcd.scanService %s: Frontend: %+v\n", serviceName, frontend)
+                    log.Printf("config:etcd.scan %s: Service %s Frontend: %+v\n", node.Key, serviceName, frontend)
 
                     configHandler(&ConfigServiceFrontend{
                         ServiceName:    serviceName,
@@ -53,10 +53,10 @@ func (self *Etcd) scanServices(servicesNode *etcd.Node, configHandler func(confi
                     backendName := path.Base(backendNode.Key)
 
                     if backend, err := loadEtcdServiceBackend(backendNode); err != nil {
-                        log.Printf("server:etcd.scanService %s: loadEtcdServiceBackend %s: %s\n", backendNode.Key, backendName, err)
+                        log.Printf("config:etcd.scan %s: loadEtcdServiceBackend: %s\n", backendNode.Key, err)
                         continue
                     } else {
-                        log.Printf("server:etcd.scanService %s: Backend %s:%+v\n", serviceName, backendName, backend)
+                        log.Printf("config:etcd.scan %s: Service %s Backend %s: %+v\n", node.Key, serviceName, backendName, backend)
 
                         configHandler(&ConfigServiceBackend{
                             ServiceName:    serviceName,
@@ -66,7 +66,7 @@ func (self *Etcd) scanServices(servicesNode *etcd.Node, configHandler func(confi
                     }
                 }
             } else {
-                log.Printf("server:etcd.scanService %s: Ignore unknown node\n", node.Key)
+                log.Printf("config:etcd.scan %s: Ignore unknown node\n", node.Key)
             }
         }
     }

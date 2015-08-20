@@ -94,7 +94,7 @@ func (self *Etcd) scan(rootNode *etcd.Node) (configs []Config) {
                 configs = append(configs, config)
             })
         } else {
-            log.Printf("server:etcd.Scan %s: Ignore unknown node\n", node.Key)
+            log.Printf("config:etcd.Scan %s: Ignore unknown node\n", node.Key)
         }
     }
 
@@ -124,21 +124,21 @@ func (self *Etcd) watch() {
     for {
         response, err := self.client.Watch(self.config.Prefix, self.syncIndex + 1, true, nil, nil)
         if err != nil {
-            log.Printf("etcd:Watch %s @ %d: %s\n", self.config.Prefix, self.syncIndex + 1, err)
+            log.Printf("config:etcd.watch %s @ %d: %s\n", self.config.Prefix, self.syncIndex + 1, err)
             break
         } else {
             self.syncIndex = response.Node.ModifiedIndex
         }
 
         if response.PrevNode != nil {
-            log.Printf("etcd.Watch: %s %+v <- %+v\n", response.Action, response.Node, response.PrevNode)
+            log.Printf("config:etcd.watch: %s %+v <- %+v\n", response.Action, response.Node, response.PrevNode)
         } else {
-            log.Printf("etcd.Watch: %s %+v\n", response.Action, response.Node)
+            log.Printf("config:etcd.watch: %s %+v\n", response.Action, response.Node)
         }
 
         // sync to update services state and generate watchEvent()'s
         if event, err := self.sync(response.Action, response.Node); err != nil {
-            log.Printf("server:etcd.sync: %s\n", err)
+            log.Printf("config:etcd.sync: %s\n", err)
             continue
         } else if event != nil {
             self.watchChan <- *event
@@ -186,10 +186,10 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 
     // match
     if config, err := self.syncPath(nodePath, node); err != nil {
-        log.Printf("server:etcd.sync %s %s: %s\n", action, path, err)
+        log.Printf("config:etcd.sync %s %s: %s\n", action, path, err)
         return nil, err
     } else if config != nil {
-        log.Printf("server:etcd.sync %s %s: %s %+v\n", action, path, eventAction, config)
+        log.Printf("config:etcd.sync %s %s: %s %+v\n", action, path, eventAction, config)
         return &Event{Action: eventAction, Config: config}, nil
     } else {
         return nil, nil
