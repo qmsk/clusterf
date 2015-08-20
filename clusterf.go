@@ -32,8 +32,8 @@ func main() {
     }
 
     // setup
-    var config      *config.Etcd
-    var driver      *clusterf.IPVSDriver
+    var configDriver    *config.Etcd
+    var driver          *clusterf.IPVSDriver
 
     // config
     if etcdClient, err := etcdConfig.Open(); err != nil {
@@ -41,7 +41,7 @@ func main() {
     } else {
         log.Printf("etcd.Open: %s\n", etcdClient)
 
-        config = etcdClient
+        configDriver = etcdClient
     }
 
     // driver
@@ -56,26 +56,26 @@ func main() {
     // start
     services := clusterf.NewServices(driver)
 
-    if configs, err := config.Scan(); err != nil {
-        log.Fatalf("etcd.Scan: %s\n", err)
+    if configs, err := configDriver.Scan(); err != nil {
+        log.Fatalf("config.Scan: %s\n", err)
     } else {
-        log.Printf("etcd.Scan: %d configs\n", len(configs))
+        log.Printf("config.Scan: %d configs\n", len(configs))
 
         if err := driver.StartSync(); err != nil {
-            log.Fatalf("ipvsDriver.startSync: %s\n", err)
+            log.Fatalf("driver.startSync: %s\n", err)
         }
 
         // iterate initial set of services
         for _, cfg := range configs {
-            services.ApplyConfig("sync", cfg)
+            services.ApplyConfig(config.NewConfig, cfg)
         }
     }
 
     // read channel for changes
-    log.Printf("etcd.Sync...\n")
+    log.Printf("config.Sync...\n")
 
-    for event := range config.Sync() {
-        log.Printf("etcd.Sync: %+v\n", event)
+    for event := range configDriver.Sync() {
+        log.Printf("config.Sync: %+v\n", event)
 
         services.ApplyConfig(event.Action, event.Config)
     }
