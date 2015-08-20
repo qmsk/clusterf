@@ -68,8 +68,10 @@ func (self *Services) configService(service *Service, action config.Action, serv
 }
 
 func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config) {
+    log.Printf("clusterf:Services: config %s %#v\n", action, baseConfig)
+
     switch baseConfig.(type) {
-    case config.ConfigService:
+    case *config.ConfigService:
         serviceConfig := baseConfig.(*config.ConfigService)
 
         if serviceConfig.ServiceName == "" {
@@ -83,14 +85,14 @@ func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config
             self.configService(service, action, serviceConfig)
         }
 
-    case config.ConfigServiceFrontend:
+    case *config.ConfigServiceFrontend:
         frontendConfig := baseConfig.(*config.ConfigServiceFrontend)
 
         service := self.get(frontendConfig.ServiceName)
 
         service.configFrontend(action, frontendConfig)
 
-    case config.ConfigServiceBackend:
+    case *config.ConfigServiceBackend:
         backendConfig := baseConfig.(*config.ConfigServiceBackend)
 
         service := self.get(backendConfig.ServiceName)
@@ -105,6 +107,6 @@ func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config
         }
 
     default:
-        panic(fmt.Errorf("Unknown config type: %+v", baseConfig))
+        panic(fmt.Errorf("Unknown config type: %#v", baseConfig))
     }
 }
