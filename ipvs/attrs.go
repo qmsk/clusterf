@@ -60,7 +60,7 @@ type Dest struct {
     Port        uint16
 
     // params
-    FwdMethod   uint32
+    FwdMethod   FwdMethod
     Weight      uint32
     UThresh     uint32
     LThresh     uint32
@@ -231,7 +231,7 @@ func unpackDest(service Service, attrs nlgo.AttrMap) (Dest, error) {
         switch attr.Field() {
         case IPVS_DEST_ATTR_ADDR:       addr = ([]byte)(attr.Value.(nlgo.Binary))
         case IPVS_DEST_ATTR_PORT:       dest.Port = unpackPort(attr.Value.(nlgo.U16))
-        case IPVS_DEST_ATTR_FWD_METHOD: dest.FwdMethod = (uint32)(attr.Value.(nlgo.U32))
+        case IPVS_DEST_ATTR_FWD_METHOD: dest.FwdMethod = (FwdMethod)(attr.Value.(nlgo.U32))
         case IPVS_DEST_ATTR_WEIGHT:     dest.Weight = (uint32)(attr.Value.(nlgo.U32))
         case IPVS_DEST_ATTR_U_THRESH:   dest.UThresh = (uint32)(attr.Value.(nlgo.U32))
         case IPVS_DEST_ATTR_L_THRESH:   dest.LThresh = (uint32)(attr.Value.(nlgo.U32))
