@@ -22,6 +22,7 @@ var ipvsTypes = []ipvsType {
 type IpvsConfig struct {
     Debug       bool
     FwdMethod   string
+    SchedName   string
 }
 
 type IPVSDriver struct {
@@ -29,6 +30,7 @@ type IPVSDriver struct {
 
     // global defaults
     fwdMethod   ipvs.FwdMethod
+    schedName   string
 }
 
 func (self IpvsConfig) Open() (*IPVSDriver, error) {
@@ -39,6 +41,8 @@ func (self IpvsConfig) Open() (*IPVSDriver, error) {
     } else {
         driver.fwdMethod = fwdMethod
     }
+
+    driver.schedName = self.SchedName
 
     // IPVS
     if ipvsClient, err := ipvs.Open(); err != nil {

@@ -29,7 +29,7 @@ func (self *ipvsFrontend) buildService (ipvsType ipvsType, frontend config.Servi
         Af:         ipvsType.Af,
         Protocol:   ipvsType.Protocol,
 
-        SchedName:  "wlc",
+        SchedName:  self.driver.schedName,
         Timeout:    0,
         Flags:      ipvs.Flags{Flags: 0, Mask: 0xffffffff},
         Netmask:    0xffffffff,

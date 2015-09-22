@@ -23,6 +23,8 @@ func init() {
         "IPVS debugging")
     flag.StringVar(&ipvsConfig.FwdMethod, "ipvs-fwd-method", "masq",
         "IPVS Forwarding method: masq tunnel droute")
+    flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", "wlc",
+        "IPVS Service Scheduler")
 }
 
 func main() {
