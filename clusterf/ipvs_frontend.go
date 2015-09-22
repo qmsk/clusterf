@@ -10,13 +10,13 @@ import (
 )
 
 type ipvsFrontend struct {
-    ipvs        *ipvs.Client
+    driver      *IPVSDriver
     state       map[ipvsType]*ipvs.Service
 }
 
 func (self *ipvsFrontend) newBackend() *ipvsBackend {
     return &ipvsBackend{
-        ipvs:       self.ipvs,
+        driver:     self.driver,
         frontend:   self,
         state:      make(map[ipvsType]*ipvs.Dest),
     }
@@ -85,7 +85,7 @@ func (self *ipvsFrontend) add(frontend config.ServiceFrontend) error {
         } else if ipvsService != nil {
             log.Printf("clusterf:ipvsFrontend.add: new %s\n", ipvsService)
 
-            if err := self.ipvs.NewService(*ipvsService); err != nil  {
+            if err := self.driver.ipvsClient.NewService(*ipvsService); err != nil  {
                 return err
             } else {
                 self.state[ipvsType] = ipvsService
@@ -101,7 +101,7 @@ func (self *ipvsFrontend) del() error {
         if ipvsService := self.state[ipvsType]; ipvsService != nil {
             log.Printf("clusterf:ipvsFrontend.del: del %s\n", ipvsService)
 
-            if err := self.ipvs.DelService(*ipvsService); err != nil  {
+            if err := self.driver.ipvsClient.DelService(*ipvsService); err != nil  {
                 return err
             } else {
                 self.state[ipvsType] = nil

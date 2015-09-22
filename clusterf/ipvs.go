@@ -28,36 +28,29 @@ type IPVSDriver struct {
 }
 
 func (self IpvsConfig) Open() (*IPVSDriver, error) {
-    ipvs := &IPVSDriver{}
+    driver := &IPVSDriver{}
 
-    if err := ipvs.open(self); err != nil {
-        return nil, err
-    } else {
-        return ipvs, nil
-    }
-}
 
-func (self *IPVSDriver) open(config IpvsConfig) error {
     // IPVS
     if ipvsClient, err := ipvs.Open(); err != nil {
-        return err
+        return nil, err
     } else {
         log.Printf("ipvs.Open: %+v\n", ipvsClient)
 
-        self.ipvsClient = ipvsClient
+        driver.ipvsClient = ipvsClient
     }
 
-    if config.Debug {
-        self.ipvsClient.SetDebug()
+    if self.Debug {
+        driver.ipvsClient.SetDebug()
     }
 
-    if info, err := self.ipvsClient.GetInfo(); err != nil {
-        return err
+    if info, err := driver.ipvsClient.GetInfo(); err != nil {
+        return nil, err
     } else {
         log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
     }
 
-    return nil
+    return driver, nil
 }
 
 // Begin initial config sync
@@ -73,7 +66,7 @@ func (self *IPVSDriver) StartSync() error {
 
 func (self *IPVSDriver) newFrontend() *ipvsFrontend {
     return &ipvsFrontend{
-        ipvs:   self.ipvsClient,
+        driver: self,
         state:  make(map[ipvsType]*ipvs.Service),
     }
 }

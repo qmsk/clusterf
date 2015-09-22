@@ -10,7 +10,7 @@ import (
 )
 
 type ipvsBackend struct {
-    ipvs        *ipvs.Client
+    driver      *IPVSDriver
     frontend    *ipvsFrontend
     state       map[ipvsType]*ipvs.Dest
 }
@@ -75,7 +75,7 @@ func (self *ipvsBackend) add(backend config.ServiceBackend) error {
             } else if ipvsDest != nil {
                 log.Printf("clusterf:ipvsBackend.add: new %s %s\n", ipvsService, ipvsDest)
 
-                if err := self.ipvs.NewDest(*ipvsService, *ipvsDest); err != nil  {
+                if err := self.driver.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil  {
                     return err
                 } else {
                     self.state[ipvsType] = ipvsDest
@@ -122,14 +122,14 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
                 log.Printf("clusterf:ipvsBackend.set: set %s %s\n", ipvsService, setDest)
 
                 // reconfigure active in-place
-                if err := self.ipvs.SetDest(*ipvsService, *setDest); err != nil  {
+                if err := self.driver.ipvsClient.SetDest(*ipvsService, *setDest); err != nil  {
                     return err
                 }
             } else {
                 log.Printf("clusterf:ipvsBackend.set: new %s %s\n", ipvsService, setDest)
 
                 // replace active
-                if err := self.ipvs.NewDest(*ipvsService, *setDest); err != nil  {
+                if err := self.driver.ipvsClient.NewDest(*ipvsService, *setDest); err != nil  {
                     return err
                 }
             }
@@ -144,7 +144,7 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
                 log.Printf("clusterf:ipvsBackend.set: del %s %s\n", ipvsService, getDest)
 
                 // replace active
-                if err := self.ipvs.DelDest(*ipvsService, *getDest); err != nil {
+                if err := self.driver.ipvsClient.DelDest(*ipvsService, *getDest); err != nil {
                     // XXX: inconsistent, we now have two dest's
                     return err
                 }
@@ -165,7 +165,7 @@ func (self *ipvsBackend) del() error {
             if ipvsDest := self.state[ipvsType]; ipvsDest != nil {
                 log.Printf("clusterf:ipvsBackend.del: del %s %s\n", ipvsService, ipvsDest)
 
-                if err := self.ipvs.DelDest(*ipvsService, *ipvsDest); err != nil  {
+                if err := self.driver.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
                     return err
                 } else {
                     self.state[ipvsType] = nil
