@@ -21,6 +21,8 @@ func init() {
 
     flag.BoolVar(&ipvsConfig.Debug, "ipvs-debug", false,
         "IPVS debugging")
+    flag.StringVar(&ipvsConfig.FwdMethod, "ipvs-fwd-method", "masq",
+        "IPVS Forwarding method: masq tunnel droute")
 }
 
 func main() {

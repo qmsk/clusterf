@@ -20,16 +20,25 @@ var ipvsTypes = []ipvsType {
 }
 
 type IpvsConfig struct {
-    Debug   bool
+    Debug       bool
+    FwdMethod   string
 }
 
 type IPVSDriver struct {
     ipvsClient *ipvs.Client
+
+    // global defaults
+    fwdMethod   ipvs.FwdMethod
 }
 
 func (self IpvsConfig) Open() (*IPVSDriver, error) {
     driver := &IPVSDriver{}
 
+    if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
+        return nil, err
+    } else {
+        driver.fwdMethod = fwdMethod
+    }
 
     // IPVS
     if ipvsClient, err := ipvs.Open(); err != nil {

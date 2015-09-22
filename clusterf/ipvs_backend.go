@@ -17,7 +17,7 @@ type ipvsBackend struct {
 
 func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBackend) (*ipvs.Dest, error) {
     ipvsDest := &ipvs.Dest{
-        FwdMethod:  ipvs.IP_VS_CONN_F_MASQ,
+        FwdMethod:  self.driver.fwdMethod,
         Weight:     10,
     }
 
