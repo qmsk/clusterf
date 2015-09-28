@@ -17,6 +17,12 @@ type ServiceBackend struct {
     UDP     uint16  `json:"udp,omitempty"`
 }
 
+type Route struct {
+    Prefix4     string
+    Gateway4    string
+    IpvsMethod  string
+}
+
 /*
  * Events when config changes
  */
@@ -61,4 +67,10 @@ type ConfigServiceBackend struct {
     BackendName     string
 
     Backend         ServiceBackend
+}
+
+type ConfigRoute struct {
+    RouteName       string
+
+    Route           Route
 }

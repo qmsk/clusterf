@@ -25,6 +25,12 @@ func (self *Node) loadServiceBackend() (backend ServiceBackend, err error) {
     return
 }
 
+func (self *Node) loadRoute() (route Route, err error) {
+    err = json.Unmarshal([]byte(self.Value), &route)
+
+    return
+}
+
 // map config node path and value to Config
 func syncConfig(node Node) (Config, error) {
     nodePath := strings.Split(node.Path, "/")
@@ -84,6 +90,25 @@ func syncConfig(node Node) (Config, error) {
             return nil, fmt.Errorf("Ignore unknown service %s node", serviceName)
         }
 
+    } else if len(nodePath) == 1 && nodePath[0] == "routes" && node.IsDir {
+        // recursive on all routes
+        return &ConfigRoute{ }, nil
+
+    } else if len(nodePath) >= 2 && nodePath[0] == "routes" {
+        routeName := nodePath[1]
+
+        if len(nodePath) == 2 && !node.IsDir {
+            if node.Value == "" {
+                // deleted node has empty value
+                return &ConfigRoute{RouteName: routeName}, nil
+            } else if route, err := node.loadRoute(); err != nil {
+                return nil, fmt.Errorf("route %s: %s", routeName, err)
+            } else {
+                return &ConfigRoute{RouteName: routeName, Route: route}, nil
+            }
+        } else {
+            return nil, fmt.Errorf("Ignore unknown route node")
+        }
     } else {
         return nil, fmt.Errorf("Ignore unknown node")
     }
