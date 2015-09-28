@@ -26,9 +26,9 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         if backend.IPv4 == "" {
             return nil, nil
         } else if ip := net.ParseIP(backend.IPv4); ip == nil {
-            return nil, fmt.Errorf("Invalid IPv4: %s", backend.IPv4)
+            return nil, fmt.Errorf("Invalid IPv4: %v", backend.IPv4)
         } else if ip4 := ip.To4(); ip4 == nil {
-            return nil, fmt.Errorf("Invalid IPv4: %s", ip)
+            return nil, fmt.Errorf("Invalid IPv4: %v", ip)
         } else {
             ipvsDest.Addr = ip4
         }
@@ -36,9 +36,9 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         if backend.IPv6 == "" {
             return nil, nil
         } else if ip := net.ParseIP(backend.IPv6); ip == nil {
-            return nil, fmt.Errorf("Invalid IPv6: %s", backend.IPv6)
+            return nil, fmt.Errorf("Invalid IPv6: %v", backend.IPv6)
         } else if ip16 := ip.To16(); ip16 == nil {
-            return nil, fmt.Errorf("Invalid IPv6: %s", ip)
+            return nil, fmt.Errorf("Invalid IPv6: %v", ip)
         } else {
             ipvsDest.Addr = ip16
         }
@@ -73,7 +73,7 @@ func (self *ipvsBackend) add(backend config.ServiceBackend) error {
             if ipvsDest, err := self.buildDest(ipvsType, backend); err != nil {
                 return err
             } else if ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.add: new %s %s\n", ipvsService, ipvsDest)
+                log.Printf("clusterf:ipvsBackend.add: new %v %v\n", ipvsService, ipvsDest)
 
                 if err := self.driver.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil  {
                     return err
@@ -104,7 +104,7 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
             if ipvsDest, err := self.buildDest(ipvsType, backend); err != nil {
                 return err
             } else if ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.set: new %s %s\n", ipvsService, ipvsDest)
+                log.Printf("clusterf:ipvsBackend.set: new %v %v\n", ipvsService, ipvsDest)
 
                 setDest = ipvsDest
             }
@@ -119,14 +119,14 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
             if setDest == nil {
                 // configured as inactive
             } else if match {
-                log.Printf("clusterf:ipvsBackend.set: set %s %s\n", ipvsService, setDest)
+                log.Printf("clusterf:ipvsBackend.set: set %v %v\n", ipvsService, setDest)
 
                 // reconfigure active in-place
                 if err := self.driver.ipvsClient.SetDest(*ipvsService, *setDest); err != nil  {
                     return err
                 }
             } else {
-                log.Printf("clusterf:ipvsBackend.set: new %s %s\n", ipvsService, setDest)
+                log.Printf("clusterf:ipvsBackend.set: new %v %v\n", ipvsService, setDest)
 
                 // replace active
                 if err := self.driver.ipvsClient.NewDest(*ipvsService, *setDest); err != nil  {
@@ -141,7 +141,7 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
                 // remains active
 
             } else {
-                log.Printf("clusterf:ipvsBackend.set: del %s %s\n", ipvsService, getDest)
+                log.Printf("clusterf:ipvsBackend.set: del %v %v\n", ipvsService, getDest)
 
                 // replace active
                 if err := self.driver.ipvsClient.DelDest(*ipvsService, *getDest); err != nil {
@@ -163,7 +163,7 @@ func (self *ipvsBackend) del() error {
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.frontend.state[ipvsType]; ipvsService != nil {
             if ipvsDest := self.state[ipvsType]; ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.del: del %s %s\n", ipvsService, ipvsDest)
+                log.Printf("clusterf:ipvsBackend.del: del %v %v\n", ipvsService, ipvsDest)
 
                 if err := self.driver.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
                     return err

@@ -40,18 +40,10 @@ func main() {
     }
 
     // setup
-    ipvsDriver, err := ipvsConfig.Open()
-    if err != nil {
-        log.Fatalf("ipvs.Open: %s\n", err)
-    } else {
-        log.Printf("ipvs.Open: %s\n", ipvsDriver)
-    }
+    services := clusterf.NewServices()
 
-    // start
-    services := clusterf.NewServices(ipvsDriver)
-
-    if err := ipvsDriver.StartSync(); err != nil {
-        log.Fatalf("driver.startSync: %s\n", err)
+    if err := services.SyncIPVS(ipvsConfig); err != nil {
+        log.Fatalf("SyncIPVS: %s\n", err)
     }
 
     // config

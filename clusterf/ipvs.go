@@ -33,8 +33,9 @@ type IPVSDriver struct {
     schedName   string
 }
 
-func (self IpvsConfig) Open() (*IPVSDriver, error) {
-    driver := &IPVSDriver{}
+func (self IpvsConfig) setup() (*IPVSDriver, error) {
+    driver := &IPVSDriver{
+    }
 
     if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
         return nil, err
@@ -66,8 +67,8 @@ func (self IpvsConfig) Open() (*IPVSDriver, error) {
     return driver, nil
 }
 
-// Begin initial config sync
-func (self *IPVSDriver) StartSync() error {
+// Begin initial config sync by flushing the system state
+func (self *IPVSDriver) sync() error {
     if err := self.ipvsClient.Flush(); err != nil {
         return err
     } else {

@@ -15,11 +15,28 @@ type Services struct {
     driver      *IPVSDriver
 }
 
-func NewServices(driver *IPVSDriver) *Services {
+func NewServices() *Services {
     return &Services{
         services:   make(map[string]*Service),
-        driver:     driver,
     }
+}
+
+// Sync currently loaded configuration to IPVS
+//
+// Begins by flushing the IPVS state
+func (self *Services) SyncIPVS(ipvsConfig IpvsConfig) error {
+    if ipvsDriver, err := ipvsConfig.setup(); err != nil {
+        return err
+    } else {
+        self.driver = ipvsDriver
+    }
+
+    // TODO: apply current configuration to driver
+    if err := self.driver.sync(); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 // Return Service for named service, possibly creating a new (empty) Service.
@@ -57,7 +74,7 @@ func (self *Services) Services() []*Service {
 // handle service-delete actions
 // new service creation is implicitly handled when calling this
 func (self *Services) configService(service *Service, action config.Action, serviceConfig *config.ConfigService) {
-    log.Printf("clusterf:Services: Service %s: %s %+v\n", service.Name, action, serviceConfig)
+    log.Printf("clusterf:Service %s: %s %+v\n", service.Name, action, serviceConfig)
 
     switch action {
     case config.DelConfig:
@@ -68,9 +85,9 @@ func (self *Services) configService(service *Service, action config.Action, serv
 }
 
 func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config) {
-    log.Printf("clusterf:Services: config %s %#v\n", action, baseConfig)
+    log.Printf("clusterf: config %s %#v\n", action, baseConfig)
 
-    switch baseConfig.(type) {
+    switch applyConfig:= baseConfig.(type) {
     case *config.ConfigService:
         serviceConfig := baseConfig.(*config.ConfigService)
 

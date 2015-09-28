@@ -40,9 +40,9 @@ func (self *ipvsFrontend) buildService (ipvsType ipvsType, frontend config.Servi
         if frontend.IPv4 == "" {
             return nil, nil
         } else if ip := net.ParseIP(frontend.IPv4); ip == nil {
-            return nil, fmt.Errorf("Invalid IPv4: %s", frontend.IPv4)
+            return nil, fmt.Errorf("Invalid IPv4: %v", frontend.IPv4)
         } else if ip4 := ip.To4(); ip4 == nil {
-            return nil, fmt.Errorf("Invalid IPv4: %s", ip)
+            return nil, fmt.Errorf("Invalid IPv4: %v", ip)
         } else {
             ipvsService.Addr = ip4
         }
@@ -50,9 +50,9 @@ func (self *ipvsFrontend) buildService (ipvsType ipvsType, frontend config.Servi
         if frontend.IPv6 == "" {
             return nil, nil
         } else if ip := net.ParseIP(frontend.IPv6); ip == nil {
-            return nil, fmt.Errorf("Invalid IPv6: %s", frontend.IPv6)
+            return nil, fmt.Errorf("Invalid IPv6: %v", frontend.IPv6)
         } else if ip16 := ip.To16(); ip16 == nil {
-            return nil, fmt.Errorf("Invalid IPv6: %s", ip)
+            return nil, fmt.Errorf("Invalid IPv6: %v", ip)
         } else {
             ipvsService.Addr = ip16
         }
@@ -83,7 +83,7 @@ func (self *ipvsFrontend) add(frontend config.ServiceFrontend) error {
         if ipvsService, err := self.buildService(ipvsType, frontend); err != nil {
             return err
         } else if ipvsService != nil {
-            log.Printf("clusterf:ipvsFrontend.add: new %s\n", ipvsService)
+            log.Printf("clusterf:ipvsFrontend.add: new %v\n", ipvsService)
 
             if err := self.driver.ipvsClient.NewService(*ipvsService); err != nil  {
                 return err
@@ -99,7 +99,7 @@ func (self *ipvsFrontend) add(frontend config.ServiceFrontend) error {
 func (self *ipvsFrontend) del() error {
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.state[ipvsType]; ipvsService != nil {
-            log.Printf("clusterf:ipvsFrontend.del: del %s\n", ipvsService)
+            log.Printf("clusterf:ipvsFrontend.del: del %v\n", ipvsService)
 
             if err := self.driver.ipvsClient.DelService(*ipvsService); err != nil  {
                 return err
