@@ -27,7 +27,7 @@ func NewServices() *Services {
 //
 // Begins by flushing the IPVS state
 func (self *Services) SyncIPVS(ipvsConfig IpvsConfig) error {
-    if ipvsDriver, err := ipvsConfig.setup(); err != nil {
+    if ipvsDriver, err := ipvsConfig.setup(self.routes); err != nil {
         return err
     } else {
         self.driver = ipvsDriver

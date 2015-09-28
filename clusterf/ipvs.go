@@ -28,13 +28,17 @@ type IpvsConfig struct {
 type IPVSDriver struct {
     ipvsClient *ipvs.Client
 
+    // global state
+    routes      Routes
+
     // global defaults
     fwdMethod   ipvs.FwdMethod
     schedName   string
 }
 
-func (self IpvsConfig) setup() (*IPVSDriver, error) {
+func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
     driver := &IPVSDriver{
+        routes: routes,
     }
 
     if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
