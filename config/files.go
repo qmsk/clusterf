@@ -35,6 +35,11 @@ func (self *Files) Scan() (configs []Config, err error) {
             return err
         }
 
+        if strings.HasPrefix(info.Name(), ".") {
+            // skip
+            return nil
+        }
+
         node := Node{
             Path:   strings.Trim(strings.TrimPrefix(path, self.config.Path), "/"),
             IsDir:  info.IsDir(),
