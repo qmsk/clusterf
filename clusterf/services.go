@@ -11,6 +11,7 @@ import (
 
 type Services struct {
     services    map[string]*Service
+    routes      Routes
 
     driver      *IPVSDriver
 }
@@ -18,6 +19,7 @@ type Services struct {
 func NewServices() *Services {
     return &Services{
         services:   make(map[string]*Service),
+        routes:     makeRoutes(),
     }
 }
 
@@ -84,6 +86,24 @@ func (self *Services) configService(service *Service, action config.Action, serv
     }
 }
 
+func (self *Services) configRoute(route *Route, action config.Action, routeConfig *config.ConfigRoute) {
+    log.Printf("clusterf:Route %s: %s %+v\n", route.Name, action, routeConfig)
+
+    switch action {
+    case config.NewConfig, config.SetConfig:
+        if err := route.config(action, routeConfig.Route); err != nil {
+            log.Printf("clusterf:Route %s: %s\n", route.Name, err)
+        } else {
+            log.Printf("clusterf:Route %s: %+v\n", route.Name, route)
+        }
+
+    case config.DelConfig:
+        self.routes.del(route.Name)
+    }
+
+    // TODO: update services?
+}
+
 func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config) {
     log.Printf("clusterf: config %s %#v\n", action, baseConfig)
 
@@ -121,6 +141,18 @@ func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config
             }
         } else {
             service.configBackend(backendConfig.BackendName, action, backendConfig)
+        }
+
+    case *config.ConfigRoute:
+        if applyConfig.RouteName == "" {
+            // all routes
+            for _, route := range self.routes {
+                self.configRoute(route, action, applyConfig)
+            }
+        } else {
+            route := self.routes.get(applyConfig.RouteName)
+
+            self.configRoute(route, action, applyConfig)
         }
 
     default:
