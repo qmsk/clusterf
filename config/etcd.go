@@ -177,21 +177,12 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 
     log.Printf("etcd:sync: %s %v\n", action, path)
 
-    nodePath := strings.Split(path, "/")
-
-    if len(path) == 0 {
-        // Split("", "/") would give [""]
-        nodePath = nil
-    }
-
     // match
-    if config, err := self.syncPath(nodePath, node); err != nil {
-        log.Printf("config:etcd.sync %s %s: %s\n", action, path, err)
-        return nil, err
-    } else if config != nil {
-        log.Printf("config:etcd.sync %s %s: %s %+v\n", action, path, eventAction, config)
-        return &Event{Action: eventAction, Config: config}, nil
-    } else {
-        return nil, nil
+    eventNode := Node{
+        Path:   path,
+        IsDir:  node.Dir,
+        Value:  node.Value,
     }
+
+    return syncEvent(eventAction, eventNode)
 }
