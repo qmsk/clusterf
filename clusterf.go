@@ -9,11 +9,15 @@ import (
 )
 
 var (
+    filesConfig config.FilesConfig
     etcdConfig  config.EtcdConfig
     ipvsConfig  clusterf.IpvsConfig
 )
 
 func init() {
+    flag.StringVar(&filesConfig.Path, "config-path", "",
+        "Local config tree")
+
     flag.StringVar(&etcdConfig.Machines, "etcd-machines", "http://127.0.0.1:2379",
         "Client endpoint for etcd")
     flag.StringVar(&etcdConfig.Prefix, "etcd-prefix", "/clusterf",
@@ -36,52 +40,68 @@ func main() {
     }
 
     // setup
-    var configDriver    *config.Etcd
-    var driver          *clusterf.IPVSDriver
-
-    // config
-    if etcdClient, err := etcdConfig.Open(); err != nil {
-        log.Fatalf("etcd.Open: %s\n", err)
-    } else {
-        log.Printf("etcd.Open: %s\n", etcdClient)
-
-        configDriver = etcdClient
-    }
-
-    // driver
-    if ipvsDriver, err := ipvsConfig.Open(); err != nil {
+    ipvsDriver, err := ipvsConfig.Open()
+    if err != nil {
         log.Fatalf("ipvs.Open: %s\n", err)
     } else {
         log.Printf("ipvs.Open: %s\n", ipvsDriver)
-
-        driver = ipvsDriver
     }
 
     // start
-    services := clusterf.NewServices(driver)
+    services := clusterf.NewServices(ipvsDriver)
 
-    if configs, err := configDriver.Scan(); err != nil {
-        log.Fatalf("config.Scan: %s\n", err)
-    } else {
-        log.Printf("config.Scan: %d configs\n", len(configs))
+    if err := ipvsDriver.StartSync(); err != nil {
+        log.Fatalf("driver.startSync: %s\n", err)
+    }
 
-        if err := driver.StartSync(); err != nil {
-            log.Fatalf("driver.startSync: %s\n", err)
+    // config
+    if filesConfig.Path != "" {
+        configFiles, err := filesConfig.Open()
+        if err != nil {
+            log.Fatalf("config:Files.Open: %s\n", err)
+        } else {
+            log.Printf("config:Files.Open: %s\n", configFiles)
         }
 
-        // iterate initial set of services
-        for _, cfg := range configs {
-            services.ApplyConfig(config.NewConfig, cfg)
+        if configs, err := configFiles.Scan(); err != nil {
+            log.Fatalf("config:Files.Scan: %s\n", err)
+        } else {
+            log.Printf("config:Files.Scan: %d configs\n", len(configs))
+
+            // iterate initial set of services
+            for _, cfg := range configs {
+                services.ApplyConfig(config.NewConfig, cfg)
+            }
         }
     }
 
-    // read channel for changes
-    log.Printf("config.Sync...\n")
+    if etcdConfig.Prefix != "" {
+        configEtcd, err := etcdConfig.Open()
+        if err != nil {
+            log.Fatalf("config:etcd.Open: %s\n", err)
+        } else {
+            log.Printf("config:etcd.Open: %s\n", configEtcd)
+        }
 
-    for event := range configDriver.Sync() {
-        log.Printf("config.Sync: %+v\n", event)
+        if configs, err := configEtcd.Scan(); err != nil {
+            log.Fatalf("config:Etcd.Scan: %s\n", err)
+        } else {
+            log.Printf("config:Etcd.Scan: %d configs\n", len(configs))
 
-        services.ApplyConfig(event.Action, event.Config)
+            // iterate initial set of services
+            for _, cfg := range configs {
+                services.ApplyConfig(config.NewConfig, cfg)
+            }
+        }
+
+        // read channel for changes
+        log.Printf("config:Etcd.Sync...\n")
+
+        for event := range configEtcd.Sync() {
+            log.Printf("config.Sync: %+v\n", event)
+
+            services.ApplyConfig(event.Action, event.Config)
+        }
     }
 
     // self.printIPVS()
