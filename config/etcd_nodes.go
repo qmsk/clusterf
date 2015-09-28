@@ -39,7 +39,7 @@ func (self *Etcd) scanServices(servicesNode *etcd.Node, configHandler func(confi
             } else if name == "backends" && node.Dir {
                 for _, backendNode := range node.Nodes {
                     backendName := path.Base(backendNode.Key)
-                    compatNode := Node{Value: node.Value}
+                    compatNode := Node{Value: backendNode.Value}
 
                     if backend, err := compatNode.loadServiceBackend(); err != nil {
                         log.Printf("config:etcd.scan %s: loadServiceBackend: %s\n", backendNode.Key, err)
