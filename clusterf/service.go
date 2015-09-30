@@ -18,12 +18,11 @@ type Service struct {
     driverBackends  map[string]*ipvsBackend
 }
 
-func newService(name string, driver *IPVSDriver) *Service {
+func newService(name string) *Service {
     return &Service{
         Name:           name,
         Backends:       make(map[string]config.ServiceBackend),
 
-        driverFrontend: driver.newFrontend(),
         driverBackends: make(map[string]*ipvsBackend),
     }
 }
@@ -40,9 +39,7 @@ func (self *Service) configFrontend(action config.Action, frontendConfig *config
 
     switch action {
     case config.NewConfig:
-        self.newFrontend(frontend)
-
-        self.Frontend = &frontend // XXX: copy?
+        self.Frontend = &frontend
 
     case config.SetConfig:
         if self.Frontend == nil {
@@ -51,7 +48,7 @@ func (self *Service) configFrontend(action config.Action, frontendConfig *config
             self.setFrontend(frontend)
         }
 
-        self.Frontend = &frontend // XXX: copy?
+        self.Frontend = &frontend
 
     case config.DelConfig:
         self.delFrontend()
@@ -65,8 +62,6 @@ func (self *Service) configBackend(backendName string, action config.Action, bac
 
     switch action {
     case config.NewConfig:
-        self.newBackend(backendName, backendConfig.Backend)
-
         self.Backends[backendName] = backendConfig.Backend
 
     case config.SetConfig:
@@ -80,6 +75,19 @@ func (self *Service) configBackend(backendName string, action config.Action, bac
         self.delBackend(backendName)
 
         delete(self.Backends, backendName)
+    }
+}
+
+// Synchronize state to IPVS
+func (self *Service) sync(driver *IPVSDriver) {
+    self.driverFrontend = driver.newFrontend()
+
+    if self.Frontend != nil {
+        self.newFrontend(*self.Frontend)
+
+        for backendName, backend := range self.Backends {
+            self.newBackend(backendName, backend)
+        }
     }
 }
 

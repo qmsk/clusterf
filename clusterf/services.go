@@ -23,32 +23,12 @@ func NewServices() *Services {
     }
 }
 
-// Sync currently loaded configuration to IPVS
-//
-// Begins by flushing the IPVS state
-func (self *Services) SyncIPVS(ipvsConfig IpvsConfig) error {
-    if ipvsDriver, err := ipvsConfig.setup(self.routes); err != nil {
-        return err
-    } else {
-        self.driver = ipvsDriver
-    }
-
-    // TODO: apply current configuration to driver
-    if err := self.driver.sync(); err != nil {
-        return err
-    }
-
-    return nil
-}
-
 // Return Service for named service, possibly creating a new (empty) Service.
 func (self *Services) get(name string) *Service {
     service, serviceExists := self.services[name]
 
     if !serviceExists {
-        service = newService(name,
-            self.driver,
-        )
+        service = newService(name)
         self.services[name] = service
     }
 
@@ -104,7 +84,7 @@ func (self *Services) configRoute(route *Route, action config.Action, routeConfi
     // TODO: update services?
 }
 
-func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config) {
+func (self *Services) config(action config.Action, baseConfig config.Config) {
     log.Printf("clusterf: config %s %#v\n", action, baseConfig)
 
     switch applyConfig:= baseConfig.(type) {
@@ -158,4 +138,44 @@ func (self *Services) ApplyConfig(action config.Action, baseConfig config.Config
     default:
         panic(fmt.Errorf("Unknown config type: %#v", baseConfig))
     }
+}
+
+// Initialize config before driver sync
+func (self *Services) NewConfig(baseConfig config.Config) {
+    if self.driver != nil {
+        panic("NewConfig after driver sync")
+    }
+
+    self.config(config.NewConfig, baseConfig)
+}
+
+// Sync initial configuration loaded via NewConfig() to IPVS
+//
+// Begins by flushing the IPVS state
+func (self *Services) SyncIPVS(ipvsConfig IpvsConfig) (*IPVSDriver, error) {
+    if ipvsDriver, err := ipvsConfig.setup(self.routes); err != nil {
+        return nil, err
+    } else {
+        self.driver = ipvsDriver
+    }
+
+    // begin sync
+    if err := self.driver.sync(); err != nil {
+        return nil, err
+    }
+
+    for _, service := range self.services {
+        service.sync(self.driver)
+    }
+
+    return self.driver, nil
+}
+
+// Apply changes to the current configuration, updating the running driver
+func (self *Services) ConfigEvent(event config.Event) {
+    if self.driver == nil {
+        panic("ConfigEvent before driver sync")
+    }
+
+    self.config(event.Action, event.Config)
 }
