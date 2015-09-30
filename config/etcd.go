@@ -150,10 +150,7 @@ func (self *Etcd) watch() {
 func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
     // decode action
     eventAction := func()Action{ switch action {
-    case "create":
-        return NewConfig
-
-    case "set":
+    case "create", "set":
         return SetConfig
 
     case "delete", "expire":

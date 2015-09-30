@@ -29,9 +29,10 @@ type Route struct {
 type Action string
 
 const (
-    // NOTE: all etcd.Sync() updates are SetConfig
-    //       NewConfig can be used together with Scan()...?
+    // Initialize configuration into a consistent state from Scan()
     NewConfig     Action   = "new"
+
+    // Changes to active configuration from Sync()
     SetConfig     Action   = "set"
     DelConfig     Action   = "del"
 )
