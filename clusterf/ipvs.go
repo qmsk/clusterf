@@ -98,7 +98,7 @@ func protoString (proto uint16) string {
     }
 }
 
-func (self *IPVSDriver) printIPVS () {
+func (self *IPVSDriver) Print() {
     if services, err := self.ipvsClient.ListServices(); err != nil {
         log.Fatalf("ipvs.ListServices: %v\n", err)
     } else {
@@ -114,7 +114,7 @@ func (self *IPVSDriver) printIPVS () {
                 log.Fatalf("ipvs.ListDests: %v\n", err)
             } else {
                 for _, dest := range dests {
-                    fmt.Printf("%5s %30s:%-5d %#04x\n",
+                    fmt.Printf("%5s %30s:%-5d %v\n",
                         "",
                         dest.Addr, dest.Port,
                         dest.FwdMethod,
@@ -124,5 +124,3 @@ func (self *IPVSDriver) printIPVS () {
         }
     }
 }
-
-
