@@ -4,6 +4,7 @@ import (
     "fmt"
 )
 
+// Dest.FwdMethod
 type FwdMethod uint32
 
 func (self FwdMethod) String() string {

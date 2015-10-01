@@ -1,6 +1,7 @@
 package ipvs
 
 import (
+    "fmt"
     "github.com/hkwi/nlgo"
     "syscall"
 )
@@ -33,10 +34,12 @@ func (client *Client) ListServices() (services []Service, err error) {
     }
 
     err = client.request(request, ipvs_cmd_policy, func (cmdAttrs nlgo.AttrMap) error {
-        if command, err := unpackCommand(cmdAttrs); err != nil {
+        if serviceAttrs := cmdAttrs.Get(IPVS_CMD_ATTR_SERVICE); serviceAttrs == nil {
+            return fmt.Errorf("IPVS_CMD_GET_SERVICE without IPVS_CMD_ATTR_SERVICE")
+        } else if service, err := unpackService(serviceAttrs.(nlgo.AttrMap)); err != nil {
             return err
         } else {
-            services = append(services, *command.service)
+            services = append(services, service)
         }
 
         return nil
@@ -74,10 +77,12 @@ func (client *Client) ListDests(service Service) (dests []Dest, err error) {
     }
 
     err = client.request(request, ipvs_cmd_policy, func (cmdAttrs nlgo.AttrMap) error {
-        if command, err := unpackCommand(cmdAttrs); err != nil {
+        if destAttrs := cmdAttrs.Get(IPVS_CMD_ATTR_DEST); destAttrs == nil {
+            return fmt.Errorf("IPVS_CMD_GET_DEST without IPVS_CMD_ATTR_DEST")
+        } else if dest, err := unpackDest(service, destAttrs.(nlgo.AttrMap)); err != nil {
             return err
         } else {
-            dests = append(dests, *command.dest)
+            dests = append(dests, dest)
         }
 
         return nil

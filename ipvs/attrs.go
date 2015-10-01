@@ -293,27 +293,3 @@ func (self command) attrs() nlgo.AttrSlice {
 
     return attrs
 }
-
-func unpackCommand(attrs nlgo.AttrMap) (command, error) {
-    var command command
-
-    for _, attr := range attrs.Slice() {
-        switch attr.Field() {
-        case IPVS_CMD_ATTR_SERVICE:
-            if service, err := unpackService(attr.Value.(nlgo.AttrMap)); err != nil {
-                return command, err
-            } else {
-                command.service = &service
-            }
-        case IPVS_CMD_ATTR_DEST:
-            // TODO: ordering
-            if dest, err := unpackDest(*command.service, attr.Value.(nlgo.AttrMap)); err != nil {
-                return command, err
-            } else {
-                command.dest = &dest
-            }
-        }
-    }
-
-    return command, nil
-}

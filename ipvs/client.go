@@ -53,7 +53,7 @@ type Request struct {
 
 // Execute a command with return messages (via handler) , returning error
 func (self *Client) request (request Request, responsePolicy nlgo.MapPolicy, responseHandler func (attrs nlgo.AttrMap) error) error {
-    self.logDebug.Printf("Client.request: cmd=%02x flags=%04x...", request.Cmd, request.Flags)
+    self.logDebug.Printf("Client.request: cmd=%02x flags=%04x attrs=%v", request.Cmd, request.Flags, request.Attrs)
 
     if out, err := self.genlHub.Request(IPVS_GENL_NAME, IPVS_GENL_VERSION, request.Cmd, request.Flags, nil, request.Attrs); err != nil {
         return err
@@ -76,6 +76,8 @@ func (self *Client) request (request Request, responsePolicy nlgo.MapPolicy, res
                 } else if attrMap, ok := attrsValue.(nlgo.AttrMap); !ok {
                     return fmt.Errorf("ipvs:Client.request: Invalid attrs value: %v", attrsValue)
                 } else {
+                    self.logDebug.Printf("Client.request: \t%v\n", attrMap)
+
                     if err := responseHandler(attrMap); err != nil {
                         return err
                     }
