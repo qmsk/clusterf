@@ -12,6 +12,7 @@ var (
     filesConfig config.FilesConfig
     etcdConfig  config.EtcdConfig
     ipvsConfig  clusterf.IpvsConfig
+    ipvsConfigPrint bool
 )
 
 func init() {
@@ -25,6 +26,8 @@ func init() {
 
     flag.BoolVar(&ipvsConfig.Debug, "ipvs-debug", false,
         "IPVS debugging")
+        flag.BoolVar(&ipvsConfigPrint, "ipvs-print", false,
+        "Dump initial IPVS config")
     flag.StringVar(&ipvsConfig.FwdMethod, "ipvs-fwd-method", "masq",
         "IPVS Forwarding method: masq tunnel droute")
     flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", "wlc",
@@ -91,6 +94,10 @@ func main() {
     // sync
     if ipvsDriver, err := services.SyncIPVS(ipvsConfig); err != nil {
         log.Fatalf("SyncIPVS: %s\n", err)
+    } else {
+        if ipvsConfigPrint {
+            ipvsDriver.Print()
+        }
     }
 
     if configEtcd != nil {
@@ -104,7 +111,6 @@ func main() {
         }
     }
 
-    // self.printIPVS()
 
     log.Printf("Exit\n")
 }
