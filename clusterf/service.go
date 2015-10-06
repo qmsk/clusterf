@@ -83,11 +83,8 @@ func (self *Service) sync(driver *IPVSDriver) {
     self.driverFrontend = driver.newFrontend()
 
     if self.Frontend != nil {
+        // also adds backends
         self.newFrontend(*self.Frontend)
-
-        for backendName, backend := range self.Backends {
-            self.newBackend(backendName, backend)
-        }
     }
 }
 
@@ -108,7 +105,7 @@ func (self *Service) setFrontend(frontend config.ServiceFrontend) {
     log.Printf("clusterf:Service %s: set Frontend: %+v\n", self.Name, frontend)
 
     if self.Frontend != nil {
-        // TODO: something more smooth...
+        // TODO: smoother setup-before-teardown transition..?
         self.delFrontend()
     }
 
@@ -122,6 +119,8 @@ func (self *Service) delFrontend() {
     if err := self.driverFrontend.del(); err != nil {
         self.driverError(err)
     }
+
+    // XXX: clear self.driverBackend[*]?
 }
 
 /* Backend actions */
