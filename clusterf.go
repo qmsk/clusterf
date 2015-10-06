@@ -13,6 +13,7 @@ var (
     etcdConfig  config.EtcdConfig
     ipvsConfig  clusterf.IpvsConfig
     ipvsConfigPrint bool
+    advertiseConfig     config.ConfigRoute
 )
 
 func init() {
@@ -32,6 +33,15 @@ func init() {
         "IPVS Forwarding method: masq tunnel droute")
     flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", "wlc",
         "IPVS Service Scheduler")
+
+    flag.StringVar(&advertiseConfig.RouteName, "advertise-route-name", "",
+        "Advertise route by name")
+    flag.StringVar(&advertiseConfig.Route.Prefix4, "advertise-route-prefix4", "",
+        "Advertise route for prefix")
+    flag.StringVar(&advertiseConfig.Route.Gateway4, "advertise-route-gateway4", "",
+        "Advertise route via gateway")
+    flag.StringVar(&advertiseConfig.Route.IpvsMethod, "advertise-route-ipvs-method", "",
+        "Advertise route ipvs-fwd-method")
 }
 
 func main() {
@@ -98,6 +108,15 @@ func main() {
         if ipvsConfigPrint {
             ipvsDriver.Print()
         }
+    }
+
+    // advertise
+    if advertiseConfig.RouteName == "" || configEtcd == nil {
+
+    } else if err := configEtcd.AdvertiseRoute(advertiseConfig); err != nil {
+        log.Fatalf("config:Etcd.AdvertiseRoute: %v\n", err)
+    } else {
+        log.Printf("config:Etcd.AdvertiseRoute: %v\n", advertiseConfig)
     }
 
     if configEtcd != nil {
