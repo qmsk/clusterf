@@ -183,3 +183,19 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
 
     return syncEvent(eventAction, eventNode)
 }
+
+// Advertise a (named) route into etcd
+func (self *Etcd) AdvertiseRoute(config ConfigRoute) error {
+    etcdPath := path.Join(self.config.Prefix, "routes", config.RouteName)
+
+    etcdValue, err := config.Route.dump()
+    if err != nil {
+        return err
+    }
+
+    if _, err := self.client.Set(etcdPath, etcdValue, 0); err != nil {
+        return err
+    }
+
+    return nil
+}

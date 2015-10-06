@@ -31,6 +31,14 @@ func (self *Node) loadRoute() (route Route, err error) {
     return
 }
 
+func (self Route) dump() (string, error) {
+    if value, err := json.Marshal(self); err != nil {
+        return "", err
+    } else {
+        return string(value), nil
+    }
+}
+
 // map config node path and value to Config
 func syncConfig(node Node) (Config, error) {
     nodePath := strings.Split(node.Path, "/")
