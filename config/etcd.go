@@ -81,24 +81,51 @@ func (self *Etcd) Scan() ([]Config, error) {
     // we assume this enough to ensure atomic sync with .Watch() on the same tree..
     self.syncIndex = response.EtcdIndex
 
-    return self.scan(response.Node), nil
+    // scan, collect and return
+    var configs []Config
+    err = self.scan(response.Node, func (config Config) {
+        configs = append(configs, config)
+    })
+    return configs, err
 }
 
 // Scan through the recursive /clusterf node to return ConfigItem's
-func (self *Etcd) scan(rootNode *etcd.Node) (configs []Config) {
-    for _, node := range rootNode.Nodes {
-        name := path.Base(node.Key)
+func (self *Etcd) scan(node *etcd.Node, configHandler func(Config)) error {
+    // decode etcd path into config tree path
+    path := node.Key
 
-        if name == "services" && node.Dir {
-            self.scanServices(node, func (config Config) {
-                configs = append(configs, config)
-            })
-        } else {
-            log.Printf("config:etcd.Scan %s: Ignore unknown node\n", node.Key)
+    if !strings.HasPrefix(node.Key, self.config.Prefix) {
+        return fmt.Errorf("node outside tree: %s", node.Key)
+    }
+
+    path = strings.TrimPrefix(path, self.config.Prefix)
+    path = strings.Trim(path, "/")
+
+    // match
+    configNode := Node{
+        Path:   path,
+        IsDir:  node.Dir,
+        Value:  node.Value,
+    }
+
+    if config, err := syncConfig(configNode); err != nil {
+        log.Printf("config:etcd.scan %s: %v\n", node.Key, err)
+    } else if config == nil {
+
+    } else {
+        log.Printf("config:etcd.scan %s: %#v\n", node.Key, config)
+
+        configHandler(config)
+    }
+
+    // recurse
+    for _, childNode := range node.Nodes {
+        if err := self.scan(childNode, configHandler); err != nil {
+            return err
         }
     }
 
-    return
+    return nil
 }
 
 /*
