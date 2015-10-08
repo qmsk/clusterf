@@ -51,6 +51,7 @@ func (self Routes) Lookup(ip net.IP) *Route {
 type Route struct {
     Name        string
 
+    // default -> nil
     Prefix4     *net.IPNet
 
     // attributes
@@ -60,7 +61,7 @@ type Route struct {
 
 func (self *Route) config(action config.Action, routeConfig config.Route) error {
     if routeConfig.Prefix4 == "" {
-
+        self.Prefix4 = nil // default
     } else if _, prefix4, err := net.ParseCIDR(routeConfig.Prefix4); err != nil {
         return fmt.Errorf("Invalid Prefix4: %s", routeConfig.Prefix4)
     } else {
@@ -68,7 +69,7 @@ func (self *Route) config(action config.Action, routeConfig config.Route) error 
     }
 
     if routeConfig.Gateway4 == "" {
-
+        self.Gateway4 = nil
     } else if gateway4 := net.ParseIP(routeConfig.Gateway4).To4(); gateway4 == nil {
         return fmt.Errorf("Invalid Gateway4: %s", routeConfig.Gateway4)
     } else {
@@ -76,7 +77,7 @@ func (self *Route) config(action config.Action, routeConfig config.Route) error 
     }
 
     if routeConfig.IpvsMethod == "" {
-
+        self.ipvs_fwdMethod = nil
     } else if fwdMethod, err := ipvs.ParseFwdMethod(routeConfig.IpvsMethod); err != nil {
         return err
     } else {
@@ -91,6 +92,10 @@ func (self *Route) config(action config.Action, routeConfig config.Route) error 
 // Returns false otherwise
 func (self *Route) match(ip net.IP) (match bool, length int) {
     if ip4 := ip.To4(); ip4 == nil {
+
+    } else if self.Prefix4 == nil {
+        // default match
+        return true, 0
 
     } else if !self.Prefix4.Contains(ip4) {
 
