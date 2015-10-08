@@ -57,6 +57,7 @@ type Route struct {
     // attributes
     Gateway4        net.IP
     ipvs_fwdMethod  *ipvs.FwdMethod
+    ipvs_filter     bool
 }
 
 func (self *Route) config(action config.Action, routeConfig config.Route) error {
@@ -77,10 +78,15 @@ func (self *Route) config(action config.Action, routeConfig config.Route) error 
     }
 
     if routeConfig.IpvsMethod == "" {
+        self.ipvs_filter = false
+        self.ipvs_fwdMethod = nil
+    } else if routeConfig.IpvsMethod == "filter" {
+        self.ipvs_filter = true
         self.ipvs_fwdMethod = nil
     } else if fwdMethod, err := ipvs.ParseFwdMethod(routeConfig.IpvsMethod); err != nil {
         return err
     } else {
+        self.ipvs_filter = false
         self.ipvs_fwdMethod = &fwdMethod
     }
 

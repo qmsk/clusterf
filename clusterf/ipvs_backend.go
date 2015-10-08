@@ -63,20 +63,21 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         panic("invalid proto")
     }
 
-    if err := self.applyRoute(ipvsType, ipvsDest); err != nil {
-        return nil, err
-    }
-
-    return ipvsDest, nil
+    return self.applyRoute(ipvsType, ipvsDest)
 }
 
-func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) error {
+func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) (*ipvs.Dest, error) {
     route := self.driver.routes.Lookup(ipvsDest.Addr)
     if route == nil {
-        return nil
+        return ipvsDest, nil
     }
 
     log.Printf("cluster:ipvsBackend.applyRoute %v: %v\n", ipvsDest, route)
+
+    if route.ipvs_filter {
+        // ignore
+        return nil, nil
+    }
 
     if route.ipvs_fwdMethod != nil {
         ipvsDest.FwdMethod = *route.ipvs_fwdMethod
@@ -89,7 +90,7 @@ func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) err
         }
     }
 
-    return nil
+    return ipvsDest, nil
 }
 
 // create any instances of this backend, assuming there is no active state
