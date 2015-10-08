@@ -14,6 +14,7 @@ var (
     ipvsConfig  clusterf.IpvsConfig
     ipvsConfigPrint bool
     advertiseConfig     config.ConfigRoute
+    filterEtcdRoutes    bool
 )
 
 func init() {
@@ -42,6 +43,22 @@ func init() {
         "Advertise route via gateway")
     flag.StringVar(&advertiseConfig.Route.IpvsMethod, "advertise-route-ipvs-method", "",
         "Advertise route ipvs-fwd-method")
+
+    flag.BoolVar(&filterEtcdRoutes, "filter-etcd-routes", false,
+        "Filter out etcd routes")
+}
+
+// Apply filtering for etcdConfig sourced Config's
+// Returns false if config should be filtered
+func filterConfigEtcd(baseConfig config.Config) bool {
+    switch baseConfig.(type) {
+    case *config.ConfigRoute:
+        if filterEtcdRoutes {
+            return true
+        }
+    }
+
+    return false
 }
 
 func main() {
@@ -96,6 +113,10 @@ func main() {
 
             // iterate initial set of services
             for _, cfg := range configs {
+                if filterConfigEtcd(cfg) {
+                    continue
+                }
+
                 services.NewConfig(cfg)
             }
         }
@@ -124,6 +145,10 @@ func main() {
         log.Printf("config:Etcd.Sync...\n")
 
         for event := range configEtcd.Sync() {
+            if filterConfigEtcd(event.Config) {
+                continue
+            }
+
             log.Printf("config.Sync: %+v\n", event)
 
             services.ConfigEvent(event)
