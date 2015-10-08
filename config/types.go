@@ -18,8 +18,17 @@ type ServiceBackend struct {
 }
 
 type Route struct {
+    // IPv4 prefix to match
+    // empty for default match
     Prefix4     string
+
+    // Override backend IPv4 address for ipvs
     Gateway4    string
+
+    // Configure IPVS fwd-method to use for destination
+    //  droute tunnel masq
+    // Filter out backend if set to
+    //  filter
     IpvsMethod  string
 }
 
