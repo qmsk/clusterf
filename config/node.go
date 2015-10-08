@@ -3,7 +3,6 @@ package config
 import (
     "fmt"
     "encoding/json"
-    "log"
     "strings"
 )
 
@@ -127,12 +126,10 @@ func syncConfig(node Node) (Config, error) {
 func syncEvent(action Action, node Node) (*Event, error) {
     // match
     if config, err := syncConfig(node); err != nil {
-        log.Printf("config:syncEvent %s %s: %s\n", action, node.Path, err)
         return nil, err
-    } else if config != nil {
-        log.Printf("config:syncEvent %s %s: %+v\n", action, node.Path, config)
-        return &Event{Action: action, Config: config}, nil
-    } else {
+    } else if config == nil {
         return nil, nil
+    } else {
+        return &Event{Action: action, Config: config}, nil
     }
 }

@@ -199,8 +199,6 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
     }
     path = strings.Trim(path, "/")
 
-    log.Printf("etcd:sync: %s %v\n", action, path)
-
     // match
     eventNode := Node{
         Path:   path,
@@ -208,7 +206,15 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
         Value:  node.Value,
     }
 
-    return syncEvent(eventAction, eventNode)
+    if event, err := syncEvent(eventAction, eventNode); err != nil {
+        log.Printf("config:Etcd.sync %s %s: %v\n", action, node.Key, err)
+        return nil, err
+    } else if event == nil {
+        return nil, nil
+    } else {
+        log.Printf("config:Etcd.sync %s %s: %#v\n", action, node.Key, event)
+        return event, err
+    }
 }
 
 // Advertise a (named) route into etcd
