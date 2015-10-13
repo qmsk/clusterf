@@ -74,9 +74,14 @@ func (self *self) syncContainer(container *docker.Container) {
         return
     }
 
-    log.Printf("syncContainer %s: update: %#v\n", container.ID, containerConfig)
+    if err := self.configEtcd.Publish(containerConfig); err != nil {
+        log.Printf("syncContainer %s: publish %#v: %v\n", container.ID, containerConfig, err)
 
-    self.containerConfig[container.ID] = containerConfig
+    } else {
+        log.Printf("syncContainer %s: publish %#v\n", container.ID, containerConfig)
+
+        self.containerConfig[container.ID] = containerConfig
+    }
 }
 
 // Teardown container state if active
@@ -85,8 +90,13 @@ func (self *self) teardownContainer(containerID string) {
         log.Printf("teardownContainer %s: unknown\n", containerID)
 
     } else {
-        log.Printf("teardownContainer %s: %#v\n", containerID, containerConfig)
+        if err := self.configEtcd.Retract(containerConfig); err != nil {
+            log.Printf("teardownContainer %s: retract #%v: %v\n", containerID, containerConfig, err)
+        } else {
+            log.Printf("teardownContainer %s: retract #%v\n", containerID, containerConfig)
+        }
 
+        // cleanup regardless
         delete(self.containerConfig, containerID)
     }
 }
