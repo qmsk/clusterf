@@ -152,20 +152,18 @@ func (self *Docker) inspectContainer(id string) (*Container, error) {
  *
  * TODO: somehow synchronize this with Subscribe() events to ensure consistency during listings?
  */
-func (self *Docker) List() ([]Container, error) {
+func (self *Docker) List() (out []*Container, err error) {
     containers, err := self.client.ListContainers(docker.ListContainersOptions{All: true})
     if err != nil {
         log.Printf("%v.ListContainers: %v\n", self, err)
         return nil, err
     }
 
-    var out []Container
-
     for _, listContainer := range containers {
         if containerState, err := self.inspectContainer(listContainer.ID); err != nil {
             break
         } else {
-            out = append(out, *containerState)
+            out = append(out, containerState)
         }
     }
 
