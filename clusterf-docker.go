@@ -22,17 +22,68 @@ func init() {
         "Etcd tree prefix")
 }
 
+type self struct {
+    configEtcd *config.Etcd
+    docker *docker.Docker
+
+    // registered state
+    containerState map[string]*docker.Container
+}
+
+// Synchronize active container state to config
+func (self *self) syncContainer(container *docker.Container) {
+    if self.containerState[container.ID] == container {
+        // no-op
+        log.Printf("syncContainer %s: no-op\n", container.ID)
+
+        return
+    }
+
+    log.Printf("syncContainer %s: update\n", container.ID)
+
+    self.containerState[container.ID] = container
+}
+
+// Teardown inactive container state
+func (self *self) teardownContainer(container *docker.Container) {
+    log.Printf("teardownContainer %s\n", container.ID)
+
+    delete(self.containerState, container.ID)
+}
+
+// Update container state
+func (self *self) containerEvent(containerEvent docker.ContainerEvent) {
+    container := self.containerState[containerEvent.ID]
+
+    if containerEvent.State != nil {
+        container = containerEvent.State
+    }
+
+    if container == nil {
+        log.Printf("containerEvent %s:%s: unknown\n", containerEvent.Status, containerEvent.ID)
+
+    } else if !containerEvent.Running {
+        log.Printf("containerEvent %s:%s: teardown\n", containerEvent.Status, containerEvent.ID)
+
+        self.teardownContainer(container)
+
+    } else {
+        log.Printf("containerEvent %s:%s: sync\n", containerEvent.Status, containerEvent.ID)
+
+        self.syncContainer(container)
+    }
+}
+
 func main() {
+    self := self{
+        containerState:  make(map[string]*docker.Container),
+    }
+
     flag.Parse()
 
     if len(flag.Args()) > 0 {
         flag.Usage()
         os.Exit(1)
-    }
-
-    var self struct {
-        configEtcd *config.Etcd
-        docker *docker.Docker
     }
 
     if configEtcd, err := etcdConfig.Open(); err != nil {
@@ -57,6 +108,8 @@ func main() {
     } else {
         for _, container := range containers {
             log.Printf("docker:Docker.List: %#v\n", container)
+
+            self.syncContainer(container)
         }
     }
 
@@ -66,6 +119,8 @@ func main() {
     } else {
         for containerEvent := range containerEvents {
             log.Printf("Docker:Docker.Subscribe: %#v\n", containerEvent)
+
+            self.containerEvent(containerEvent)
         }
     }
 }
