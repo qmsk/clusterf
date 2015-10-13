@@ -6,6 +6,7 @@ import (
     "log"
     "net"
     "path"
+    "strconv"
 )
 
 type DockerConfig struct {
@@ -51,11 +52,11 @@ type Container struct {
 
 type Port struct {
     Proto       string
-    Port        string
+    Port        uint16
 
     // exposed
     HostIP      string
-    HostPort    string
+    HostPort    uint16
 }
 
 type ContainerEvent struct {
@@ -107,6 +108,16 @@ func (self *Docker) String() string {
     return fmt.Sprintf("Docker<%v>", self.config)
 }
 
+func parsePort(portString string) (uint16, error) {
+    if portValue, err := strconv.Atoi(portString); err != nil {
+        return 0, fmt.Errorf("port invalid: %v", portString)
+    } else if portValue <= 0 || portValue >= (1 << 16) {
+        return 0, fmt.Errorf("port out of range: %v", portString)
+    } else {
+        return uint16(portValue), nil
+    }
+}
+
 /*
  * Return the state of the given container, based on the given event.
  *
@@ -131,14 +142,24 @@ func (self *Docker) inspectContainer(id string) (*Container, error) {
 
     for dockerPort, portBindings := range dockerContainer.NetworkSettings.Ports {
         port := Port{
-            Port:   dockerPort.Port(),
             Proto:  dockerPort.Proto(),
+        }
+
+        if portValue, err := parsePort(dockerPort.Port()); err != nil {
+            return nil, err
+        } else {
+            port.Port = portValue
         }
 
         for _, portBinding := range portBindings {
             // XXX: choose one
             port.HostIP = portBinding.HostIP
-            port.HostPort = portBinding.HostPort
+
+            if hostPort, err := parsePort(portBinding.HostPort); err != nil {
+                return nil, err
+            } else {
+                port.HostPort = hostPort
+            }
         }
 
         state.Ports = append(state.Ports, port)
