@@ -13,7 +13,7 @@ var (
     etcdConfig  config.EtcdConfig
     ipvsConfig  clusterf.IpvsConfig
     ipvsConfigPrint bool
-    advertiseConfig     config.ConfigRoute
+    advertiseRouteConfig     config.ConfigRoute
     filterEtcdRoutes    bool
 )
 
@@ -35,13 +35,13 @@ func init() {
     flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", "wlc",
         "IPVS Service Scheduler")
 
-    flag.StringVar(&advertiseConfig.RouteName, "advertise-route-name", "",
+    flag.StringVar(&advertiseRouteConfig.RouteName, "advertise-route-name", "",
         "Advertise route by name")
-    flag.StringVar(&advertiseConfig.Route.Prefix4, "advertise-route-prefix4", "",
+    flag.StringVar(&advertiseRouteConfig.Route.Prefix4, "advertise-route-prefix4", "",
         "Advertise route for prefix")
-    flag.StringVar(&advertiseConfig.Route.Gateway4, "advertise-route-gateway4", "",
+    flag.StringVar(&advertiseRouteConfig.Route.Gateway4, "advertise-route-gateway4", "",
         "Advertise route via gateway")
-    flag.StringVar(&advertiseConfig.Route.IpvsMethod, "advertise-route-ipvs-method", "",
+    flag.StringVar(&advertiseRouteConfig.Route.IpvsMethod, "advertise-route-ipvs-method", "",
         "Advertise route ipvs-fwd-method")
 
     flag.BoolVar(&filterEtcdRoutes, "filter-etcd-routes", false,
@@ -132,12 +132,12 @@ func main() {
     }
 
     // advertise
-    if advertiseConfig.RouteName == "" || configEtcd == nil {
+    if advertiseRouteConfig.RouteName == "" || configEtcd == nil {
 
-    } else if err := configEtcd.AdvertiseRoute(advertiseConfig); err != nil {
-        log.Fatalf("config:Etcd.AdvertiseRoute: %v\n", err)
+    } else if err := configEtcd.Publish(advertiseRouteConfig); err != nil {
+        log.Fatalf("config:Etcd.Publish advertiseRoute %#v: %v\n", advertiseRouteConfig, err)
     } else {
-        log.Printf("config:Etcd.AdvertiseRoute: %v\n", advertiseConfig)
+        log.Printf("config:Etcd.Publish advertiseRoute %#v\n", advertiseRouteConfig)
     }
 
     if configEtcd != nil {
