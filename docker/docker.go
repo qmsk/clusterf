@@ -41,6 +41,18 @@ type Container struct {
 
     // basename of image used to run container
     Image       string
+
+    // exposed, published ports
+    Ports       []Port
+}
+
+type Port struct {
+    Proto       string
+    Port        string
+
+    // exposed
+    HostIP      string
+    HostPort    string
 }
 
 type ContainerEvent struct {
@@ -111,6 +123,21 @@ func (self *Docker) inspectContainer(id string) (*Container, error) {
         IPv4:       net.ParseIP(dockerContainer.NetworkSettings.IPAddress),
         Hostname:   dockerContainer.Config.Hostname,
         Image:      path.Base(dockerContainer.Config.Image),
+    }
+
+    for dockerPort, portBindings := range dockerContainer.NetworkSettings.Ports {
+        port := Port{
+            Port:   dockerPort.Port(),
+            Proto:  dockerPort.Proto(),
+        }
+
+        for _, portBinding := range portBindings {
+            // XXX: choose one
+            port.HostIP = portBinding.HostIP
+            port.HostPort = portBinding.HostPort
+        }
+
+        state.Ports = append(state.Ports, port)
     }
 
     return &state, nil
