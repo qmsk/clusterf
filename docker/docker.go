@@ -44,6 +44,9 @@ type Container struct {
 
     // exposed, published ports
     Ports       []Port
+
+    // XXX: configured image, run labels?
+    Labels      map[string]string
 }
 
 type Port struct {
@@ -123,6 +126,7 @@ func (self *Docker) inspectContainer(id string) (*Container, error) {
         IPv4:       net.ParseIP(dockerContainer.NetworkSettings.IPAddress),
         Hostname:   dockerContainer.Config.Hostname,
         Image:      path.Base(dockerContainer.Config.Image),
+        Labels:     dockerContainer.Config.Labels,
     }
 
     for dockerPort, portBindings := range dockerContainer.NetworkSettings.Ports {
