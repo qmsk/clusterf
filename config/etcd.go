@@ -5,7 +5,6 @@ import (
     etcdError "github.com/coreos/etcd/error"
     "fmt"
     "log"
-    "path"
     "strings"
 )
 
@@ -217,18 +216,30 @@ func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
     }
 }
 
-// Advertise a (named) route into etcd
-func (self *Etcd) AdvertiseRoute(config ConfigRoute) error {
-    etcdPath := path.Join(self.config.Prefix, "routes", config.RouteName)
+func (self *Etcd) path(parts ...string) string {
+    return strings.Join(append([]string{self.config.Prefix}, parts...), "/")
+}
 
-    etcdValue, err := config.Route.dump()
-    if err != nil {
+// Publish a config into etcd
+func (self *Etcd) Publish(config Config) error {
+    var ttl uint64 = 0
+
+    if node, err := config.publish(); err != nil {
         return err
-    }
-
-    if _, err := self.client.Set(etcdPath, etcdValue, 0); err != nil {
+    } else if _, err := self.client.Set(self.path(node.Path), node.Value, ttl); err != nil {
         return err
+    } else {
+        return nil
     }
+}
 
-    return nil
+// Retract a config from etcd
+func (self *Etcd) Retract(config Config) error {
+    if node, err := config.publish(); err != nil {
+        return err
+    } else if _, err := self.client.Delete(self.path(node.Path), false); err != nil {
+        return err
+    } else {
+        return nil
+    }
 }

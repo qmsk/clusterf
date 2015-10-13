@@ -7,8 +7,11 @@ import (
 )
 
 type Node struct {
+    // clusterf-relative path, so with any prefix stripped
     Path    string
     IsDir   bool
+
+    // json-encoded
     Value   string
 }
 
@@ -28,14 +31,6 @@ func (self *Node) loadRoute() (route Route, err error) {
     err = json.Unmarshal([]byte(self.Value), &route)
 
     return
-}
-
-func (self Route) dump() (string, error) {
-    if value, err := json.Marshal(self); err != nil {
-        return "", err
-    } else {
-        return string(value), nil
-    }
 }
 
 // map config node path and value to Config

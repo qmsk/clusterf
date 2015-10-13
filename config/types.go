@@ -53,7 +53,7 @@ type Event struct {
 }
 
 type Config interface {
-
+    publish() (node Node, err error)
 }
 
 /* Different config objects */
