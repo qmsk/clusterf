@@ -60,7 +60,7 @@ type Port struct {
 
 type ContainerEvent struct {
     ID          string
-    Event       string
+    Status      string
 
     // Interpretation of running state after this event
     Running     bool
@@ -170,6 +170,31 @@ func (self *Docker) List() (out []*Container, err error) {
     return out, nil
 }
 
+// Handle a container event
+func (self *Docker) containerEvent(dockerEvent *docker.APIEvents) (event ContainerEvent, err error) {
+    event.ID = dockerEvent.ID
+    event.Status = dockerEvent.Status
+
+    if containerState, err := self.inspectContainer(dockerEvent.ID); err != nil {
+        // skip lookup for cases where we don't have the container state anymore
+        // this is normal for "destroy", but other events could also race
+        event.State = nil
+
+        // XXX: Running is indeterminite, but we can assume it is not?
+
+    } else {
+        event.Running = containerState.Running
+        event.State = containerState
+    }
+
+    if dockerEvent.Status == "die" {
+        // XXX: docker seems to be inconsistent about the inspected container State.Running=true/false immediately after a die?
+        event.Running = false
+    }
+
+    return
+}
+
 /*
  * Subscribe to container events.
  */
@@ -186,33 +211,30 @@ func (self *Docker) Subscribe() (chan ContainerEvent, error) {
         defer close(out)
 
         for dockerEvent := range listener {
-            if dockerEvent == docker.EOFEvent {
+            switch dockerEvent.Status {
+            case "EOF":
                 // XXX: how is this different to close()'ing the chan?
                 log.Printf("%v.Subscribe: EOF\n", self)
                 break
+
+            // container events
+            case "attach", "commit", "copy", "create", "destroy", "die", "exec_create", "exec_start", "export", "kill", "oom", "pause", "rename", "resize", "restart", "start", "stop", "top", "unpause":
+                if containerEvent, err := self.containerEvent(dockerEvent); err != nil {
+                    log.Printf("%v.Subscribe %v:%v: containerEvent: %v\n", self, dockerEvent.Status, dockerEvent.ID, err)
+
+                } else {
+                    // log.Printf("%v.Subscribe %v:%v: %#v\n", self, dockerEvent.Status, dockerEvent.ID, containerEvent)
+
+                    out <- containerEvent
+                }
+
+            // image events
+            case "delete", "import", "pull", "push", "tag", "untag":
+                log.Printf("%v.Subscribe %v:%v: image event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
+
+            default:
+                log.Printf("%v.Subscribe %v:%v: unknown event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
             }
-
-            event := ContainerEvent{ID: dockerEvent.ID, Event: dockerEvent.Status}
-
-            if dockerEvent.Status == "destroy" {
-                // skip lookup for cases where we don't have the container state anymore
-
-            } else if containerState, err := self.inspectContainer(dockerEvent.ID); err != nil {
-                break
-
-            } else {
-                event.State = containerState
-                event.Running = containerState.Running
-            }
-
-            if dockerEvent.Status == "die" {
-                // XXX: docker seems to be inconsistent about the inspected container State.Running=true/false immediately after a die?
-                event.Running = false
-            }
-
-            log.Printf("%v.Subscribe: %v %v: %#v\n", self, event.Event, event.ID, event.State)
-
-            out <- event
         }
     }()
 
