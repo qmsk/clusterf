@@ -2,7 +2,7 @@ package main
 
 import (
     "qmsk.net/clusterf/config"
-    "qmsk.net/clusterf/clusterf"
+    "qmsk.net/clusterf"
     "flag"
     "log"
     "os"
