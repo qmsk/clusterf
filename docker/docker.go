@@ -23,7 +23,7 @@ type Docker struct {
     Name string
 }
 
-type ContainerState struct {
+type Container struct {
     // local unique ID for continer
     ID          string
 
@@ -51,7 +51,7 @@ type ContainerEvent struct {
     Running     bool
 
     // Current state of container; may be inconsistent or missing
-    State       *ContainerState
+    State       *Container
 }
 
 func (self DockerConfig) Open() (*Docker, error) {
@@ -97,21 +97,23 @@ func (self *Docker) String() string {
  *
  *  event       - /event status, or "" when listing
  */
-func (self *Docker) inspectContainerState(id string) (*ContainerState, error) {
-    container, err := self.client.InspectContainer(id)
+func (self *Docker) inspectContainer(id string) (*Container, error) {
+    dockerContainer, err := self.client.InspectContainer(id)
     if err != nil {
-        log.Printf("%v.inspectContainerState(%v): %v\n", self, id, err)
+        log.Printf("%v.inspectContainer(%v): %v\n", self, id, err)
         return nil, err
     }
 
-    return &ContainerState{
+    state := Container{
         ID:         id,
-        Name:       path.Base(container.Name),
-        Running:    container.State.Running,
-        IPv4:       net.ParseIP(container.NetworkSettings.IPAddress),
-        Hostname:   container.Config.Hostname,
-        Image:      path.Base(container.Config.Image),
-    }, nil
+        Name:       path.Base(dockerContainer.Name),
+        Running:    dockerContainer.State.Running,
+        IPv4:       net.ParseIP(dockerContainer.NetworkSettings.IPAddress),
+        Hostname:   dockerContainer.Config.Hostname,
+        Image:      path.Base(dockerContainer.Config.Image),
+    }
+
+    return &state, nil
 }
 
 /*
@@ -119,17 +121,17 @@ func (self *Docker) inspectContainerState(id string) (*ContainerState, error) {
  *
  * TODO: somehow synchronize this with Subscribe() events to ensure consistency during listings?
  */
-func (self *Docker) List() ([]ContainerState, error) {
+func (self *Docker) List() ([]Container, error) {
     containers, err := self.client.ListContainers(docker.ListContainersOptions{All: true})
     if err != nil {
         log.Printf("%v.ListContainers: %v\n", self, err)
         return nil, err
     }
 
-    var out []ContainerState
+    var out []Container
 
     for _, listContainer := range containers {
-        if containerState, err := self.inspectContainerState(listContainer.ID); err != nil {
+        if containerState, err := self.inspectContainer(listContainer.ID); err != nil {
             break
         } else {
             out = append(out, *containerState)
@@ -166,7 +168,7 @@ func (self *Docker) Subscribe() (chan ContainerEvent, error) {
             if dockerEvent.Status == "destroy" {
                 // skip lookup for cases where we don't have the container state anymore
 
-            } else if containerState, err := self.inspectContainerState(dockerEvent.ID); err != nil {
+            } else if containerState, err := self.inspectContainer(dockerEvent.ID); err != nil {
                 break
 
             } else {
