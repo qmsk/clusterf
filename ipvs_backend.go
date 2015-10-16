@@ -15,6 +15,14 @@ type ipvsBackend struct {
     state       map[ipvsType]*ipvs.Dest
 }
 
+func makeBackend(frontend *ipvsFrontend) *ipvsBackend {
+    return &ipvsBackend{
+        driver:     frontend.driver,
+        frontend:   frontend,
+        state:      make(map[ipvsType]*ipvs.Dest),
+    }
+}
+
 func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBackend) (*ipvs.Dest, error) {
     ipvsDest := &ipvs.Dest{
         FwdMethod:  self.driver.fwdMethod,

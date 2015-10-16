@@ -83,10 +83,7 @@ func (self *IPVSDriver) sync() error {
 }
 
 func (self *IPVSDriver) newFrontend() *ipvsFrontend {
-    return &ipvsFrontend{
-        driver: self,
-        state:  make(map[ipvsType]*ipvs.Service),
-    }
+    return makeFrontend(self)
 }
 
 func (self *IPVSDriver) Print() {

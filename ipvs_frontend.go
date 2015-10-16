@@ -14,12 +14,15 @@ type ipvsFrontend struct {
     state       map[ipvsType]*ipvs.Service
 }
 
-func (self *ipvsFrontend) newBackend() *ipvsBackend {
-    return &ipvsBackend{
-        driver:     self.driver,
-        frontend:   self,
-        state:      make(map[ipvsType]*ipvs.Dest),
+func makeFrontend(driver *IPVSDriver) *ipvsFrontend {
+    return &ipvsFrontend{
+        driver: driver,
+        state:  make(map[ipvsType]*ipvs.Service),
     }
+}
+
+func (self *ipvsFrontend) newBackend() *ipvsBackend {
+    return makeBackend(self)
 }
 
 // setup a valid ipvs.Service for the given ServiceFrontend and ipvsType
