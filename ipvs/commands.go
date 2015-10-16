@@ -6,6 +6,28 @@ import (
     "syscall"
 )
 
+type command struct {
+    service     *Service
+    serviceFull bool
+
+    dest        *Dest
+    destFull    bool
+}
+
+func (self command) attrs() nlgo.AttrSlice {
+    var attrs nlgo.AttrSlice
+
+    if self.service != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_SERVICE, self.service.attrs(self.serviceFull)))
+    }
+
+    if self.dest != nil {
+        attrs = append(attrs, nlattr(IPVS_CMD_ATTR_DEST, self.dest.attrs(self.service, self.destFull)))
+    }
+
+    return attrs
+}
+
 func (client *Client) NewService(service Service) error {
     return client.exec(Request{
         Cmd:        IPVS_CMD_NEW_SERVICE,
