@@ -7,6 +7,12 @@ The `clusterf-docker` daemon runs on the docker hosts, and enumerates the Docker
 
 The `clusterf-ipvs` daemon runs on the cluster frontend hosts with external connectivity, and enumerates configured service frontend+backends from the etcd `/clusterf` configuration store to synchronizes the in-kernel IPVS configuration. The daemon continues to watch for etcd changes to update the live IPVS service state.
 
+## Highlights
+
+The use of `etcd` as a distributed share configuration backend allows the seamless operation of multiple `clusterf-docker` hosts and multiple `clusterf-ipvs` hosts, with changes to service state on backend nodes being immediately propagated to all frontend nodes.
+
+In terms of performance, the `clusterf` daemons act as a control-plane only: the actual packet-handling data plane is implemented by the IPVS code inside the Linux kernel, and forwarded packets do not need to pass through user-space.
+
 ## Example
 
     $ sudo ipvsadm
