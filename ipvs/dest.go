@@ -56,6 +56,11 @@ type Dest struct {
     PersistConns    uint32
 }
 
+// Acts as an unique identifier for the Service
+func (self Dest) String() string {
+    return fmt.Sprintf("%s:%d", self.Addr, self.Port)
+}
+
 func unpackDest(service Service, attrs nlgo.AttrMap) (Dest, error) {
     var dest Dest
     var addr []byte

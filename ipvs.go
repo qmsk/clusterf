@@ -8,8 +8,8 @@ import (
 )
 
 type ipvsType struct {
-    Af          uint16
-    Protocol    uint16
+    Af          ipvs.Af
+    Protocol    ipvs.Protocol
 }
 
 var ipvsTypes = []ipvsType {
@@ -89,23 +89,14 @@ func (self *IPVSDriver) newFrontend() *ipvsFrontend {
     }
 }
 
-// XXX
-func protoString (proto uint16) string {
-    switch (proto) {
-    case syscall.IPPROTO_TCP:   return "TCP"
-    case syscall.IPPROTO_UDP:   return "UDP"
-    default: return fmt.Sprintf("%d", proto)
-    }
-}
-
 func (self *IPVSDriver) Print() {
     if services, err := self.ipvsClient.ListServices(); err != nil {
         log.Fatalf("ipvs.ListServices: %v\n", err)
     } else {
         fmt.Printf("Proto                           Addr:Port\n")
         for _, service := range services {
-            fmt.Printf("%-5s %30s:%-5d %s\n",
-                protoString(service.Protocol),
+            fmt.Printf("%-5v %30s:%-5d %s\n",
+                service.Protocol,
                 service.Addr, service.Port,
                 service.SchedName,
             )

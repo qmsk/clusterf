@@ -30,7 +30,7 @@ func pack (in interface{}) nlgo.Binary {
 }
 
 // Helpers for net.IP <-> nlgo.Binary
-func unpackAddr (value nlgo.Binary, af uint16) (net.IP, error) {
+func unpackAddr (value nlgo.Binary, af Af) (net.IP, error) {
     buf := ([]byte)(value)
     size := 0
 
@@ -48,7 +48,7 @@ func unpackAddr (value nlgo.Binary, af uint16) (net.IP, error) {
     return (net.IP)(buf[:size]), nil
 }
 
-func packAddr (af uint16, addr net.IP) nlgo.Binary {
+func packAddr (af Af, addr net.IP) nlgo.Binary {
     var ip net.IP
 
     switch af {

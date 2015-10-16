@@ -4,6 +4,7 @@ import (
     "fmt"
     "net"
     "github.com/hkwi/nlgo"
+    "syscall"
 )
 
 type Flags struct {
@@ -11,10 +12,38 @@ type Flags struct {
     Mask    uint32
 }
 
+type Af uint16
+
+func (self Af) String() string {
+    switch self {
+    case syscall.AF_INET:
+        return "inet"
+    case syscall.AF_INET6:
+        return "inet6"
+    default:
+        return fmt.Sprintf("%d", self)
+    }
+}
+
+type Protocol uint16
+
+func (self Protocol) String() string {
+    switch self {
+    case syscall.IPPROTO_TCP:
+        return "tcp"
+    case syscall.IPPROTO_UDP:
+        return "udp"
+    case syscall.IPPROTO_SCTP:
+        return "sctp"
+    default:
+        return fmt.Sprintf("%d", self)
+    }
+}
+
 type Service struct {
     // id
-    Af          uint16
-    Protocol    uint16
+    Af          Af
+    Protocol    Protocol
     Addr        net.IP
     Port        uint16
     FwMark      uint32
@@ -26,11 +55,12 @@ type Service struct {
     Netmask     uint32
 }
 
+// Acts as an unique identifier for the Service
 func (self Service) String() string {
     if self.FwMark == 0 {
-        return fmt.Sprintf("%d-%d://%s:%d", self.Af, self.Protocol, self.Addr, self.Port)
+        return fmt.Sprintf("%v+%v://%s:%d", self.Af, self.Protocol, self.Addr, self.Port)
     } else {
-        return fmt.Sprintf("%d-fwmark://#%d", self.Af, self.FwMark)
+        return fmt.Sprintf("%s+fwmark://%d", self.Af, self.FwMark)
     }
 }
 
@@ -42,8 +72,8 @@ func unpackService(attrs nlgo.AttrMap) (Service, error) {
 
     for _, attr := range attrs.Slice() {
         switch attr.Field() {
-        case IPVS_SVC_ATTR_AF:          service.Af = (uint16)(attr.Value.(nlgo.U16))
-        case IPVS_SVC_ATTR_PROTOCOL:    service.Protocol = (uint16)(attr.Value.(nlgo.U16))
+        case IPVS_SVC_ATTR_AF:          service.Af = (Af)(attr.Value.(nlgo.U16))
+        case IPVS_SVC_ATTR_PROTOCOL:    service.Protocol = (Protocol)(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_ADDR:        addr = attr.Value.(nlgo.Binary)
         case IPVS_SVC_ATTR_PORT:        service.Port = unpackPort(attr.Value.(nlgo.U16))
         case IPVS_SVC_ATTR_FWMARK:      service.FwMark = (uint32)(attr.Value.(nlgo.U32))
