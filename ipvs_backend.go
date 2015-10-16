@@ -145,14 +145,14 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
             if ipvsDest, err := self.buildDest(ipvsType, backend); err != nil {
                 return err
             } else if ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.set: new %v %v\n", ipvsService, ipvsDest)
-
                 setDest = ipvsDest
             }
 
             // compare for matching id, but changed value
-            if setDest != nil && getDest != nil {
-                match = false // XXX: setDest.Match(getDest)
+            if setDest == nil || getDest == nil {
+                match = false
+            } else if setDest.String() == getDest.String() {
+                match = true
             } else {
                 match = false
             }
