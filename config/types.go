@@ -15,6 +15,8 @@ type ServiceBackend struct {
     IPv6    string  `json:"ipv6,omitempty"`
     TCP     uint16  `json:"tcp,omitempty"`
     UDP     uint16  `json:"udp,omitempty"`
+
+    Weight  uint    `json:"weight,omitempty"`   // default: 10
 }
 
 type Route struct {

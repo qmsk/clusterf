@@ -63,6 +63,12 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         panic("invalid proto")
     }
 
+    if backend.Weight == 0 {
+
+    } else {
+        ipvsDest.Weight = uint32(backend.Weight)
+    }
+
     return self.applyRoute(ipvsType, ipvsDest)
 }
 
