@@ -67,8 +67,11 @@ In terms of performance, the `clusterf` daemons act as a control-plane only: the
 
 ## Additional features
 
+### Routed backends
 The `clusterf` code additionally supports the use of *routed backends*, to redirect traffic to a specific backend via some middle tier.
 This feature enables the separaration of the IPVS traffic handling into two tiers: a scaleable and fault-tolerant stateless frontend using IPVS `droute` forwarding, plus a simple-to-configure stateful backend using IPVS `masq` forwarding.
+
+The routed backend support includes local configuration to override routes in etcd, and the ability to advertise a route for local services into etcd.
 
 ## Known issues
 
