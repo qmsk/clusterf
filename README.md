@@ -15,11 +15,6 @@ The use of `etcd` as a distributed share configuration backend allows the seamle
 
 In terms of performance, the `clusterf` daemons act as a control-plane only: the actual packet-handling data plane is implemented by the IPVS code inside the Linux kernel, and forwarded packets do not need to pass through user-space.
 
-## Future ideas
-
-*   Implement a docker networking extension to configure the public VIP directly within the docker container.
-    Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
-
 ## Example
 
     $ sudo ipvsadm
@@ -87,4 +82,9 @@ This feature enables the separaration of the IPVS traffic handling into two tier
 *   The `clusterf-docker` daemon is limited in terms of the policy configuration available.
     It needs support for different network topologies, such as Docker's traditional "published" NAT ports.
 *   Hairpinning to allow access to local backends from docker containers on the same host requires some work to deal with asymmetric routing on the docker host bridge.
+*   IPv6 configuration is partially supported in the `clusterf-ipvs` code, but untested. The `clusterf-docker` code is lacking IPv6 configuration support.
 
+## Future ideas
+
+*   Implement a docker networking extension to configure the public VIP directly within the docker container.
+    Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
