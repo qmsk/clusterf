@@ -7,11 +7,18 @@ The `clusterf-docker` daemon runs on the docker hosts, and enumerates the Docker
 
 The `clusterf-ipvs` daemon runs on the cluster frontend hosts with external connectivity, and enumerates configured service frontend+backends from the etcd `/clusterf` configuration store to synchronizes the in-kernel IPVS configuration. The daemon continues to watch for etcd changes to update the live IPVS service state.
 
+The system essentially acts as a L4-aware L3 routed network, routing packets at the L3 layer based on L4 information.
+
 ## Highlights
 
 The use of `etcd` as a distributed share configuration backend allows the seamless operation of multiple `clusterf-docker` hosts and multiple `clusterf-ipvs` hosts, with changes to service state on backend nodes being immediately propagated to all frontend nodes.
 
 In terms of performance, the `clusterf` daemons act as a control-plane only: the actual packet-handling data plane is implemented by the IPVS code inside the Linux kernel, and forwarded packets do not need to pass through user-space.
+
+## Future ideas
+
+*   Implement a docker networking extension to configure the public VIP directly within the docker container.
+    Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
 
 ## Example
 
@@ -70,5 +77,14 @@ This feature enables the separaration of the IPVS traffic handling into two tier
 
 ## Known issues
 
-* multiple ServiceBackends routed to the same ipvsBackend are not coleasced
-* route updates are not propagated to backends
+*   Dead service backends are not cleaned up.
+    The `clusterf-docker` daemon will remove any containers that are stopped, but a dead `clusterf-docker` daemon or docker host will result in
+    ghost backends in etcd.
+*   Multiple ServiceBackends routed to the same ipvsBackend are not coleasced.
+    This will cause issues with the IPVS backend state for all affected service backends being removed as soon as the first colliding service backend is removed.
+*   Route updates are not propagated to backends.
+    Adding/Updating/Removing a route will not be reflected in the IPVS state until the service backends are updated.
+*   The `clusterf-docker` daemon is limited in terms of the policy configuration available.
+    It needs support for different network topologies, such as Docker's traditional "published" NAT ports.
+*   Hairpinning to allow access to local backends from docker containers on the same host requires some work to deal with asymmetric routing on the docker host bridge.
+
