@@ -23,13 +23,13 @@ func makeBackend(frontend *ipvsFrontend) *ipvsBackend {
     }
 }
 
-func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBackend) (*ipvs.Dest, error) {
+func (self *ipvsBackend) buildDest (ipvsService *ipvs.Service, backend config.ServiceBackend) (*ipvs.Dest, error) {
     ipvsDest := &ipvs.Dest{
         FwdMethod:  self.driver.fwdMethod,
         Weight:     10,
     }
 
-    switch ipvsType.Af {
+    switch ipvsService.Af {
     case syscall.AF_INET:
         if backend.IPv4 == "" {
             return nil, nil
@@ -54,7 +54,7 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         panic("invalid af")
     }
 
-    switch ipvsType.Protocol {
+    switch ipvsService.Protocol {
     case syscall.IPPROTO_TCP:
         if backend.TCP == 0 {
             return nil, nil
@@ -77,10 +77,10 @@ func (self *ipvsBackend) buildDest (ipvsType ipvsType, backend config.ServiceBac
         ipvsDest.Weight = uint32(backend.Weight)
     }
 
-    return self.applyRoute(ipvsType, ipvsDest)
+    return self.applyRoute(ipvsService, ipvsDest)
 }
 
-func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) (*ipvs.Dest, error) {
+func (self *ipvsBackend) applyRoute (ipvsService *ipvs.Service, ipvsDest *ipvs.Dest) (*ipvs.Dest, error) {
     route := self.driver.routes.Lookup(ipvsDest.Addr)
     if route == nil {
         return ipvsDest, nil
@@ -97,7 +97,7 @@ func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) (*i
         ipvsDest.FwdMethod = *route.ipvs_fwdMethod
     }
 
-    switch ipvsType.Af {
+    switch ipvsService.Af {
     case syscall.AF_INET:
         if route.Gateway4 != nil {
             ipvsDest.Addr = route.Gateway4
@@ -111,7 +111,7 @@ func (self *ipvsBackend) applyRoute (ipvsType ipvsType, ipvsDest *ipvs.Dest) (*i
 func (self *ipvsBackend) add(backend config.ServiceBackend) error {
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.frontend.state[ipvsType]; ipvsService != nil {
-            if ipvsDest, err := self.buildDest(ipvsType, backend); err != nil {
+            if ipvsDest, err := self.buildDest(ipvsService, backend); err != nil {
                 return err
             } else if ipvsDest != nil {
                 log.Printf("clusterf:ipvsBackend.add: new %v %v\n", ipvsService, ipvsDest)
@@ -142,7 +142,7 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
 
             getDest = self.state[ipvsType]
 
-            if ipvsDest, err := self.buildDest(ipvsType, backend); err != nil {
+            if ipvsDest, err := self.buildDest(ipvsService, backend); err != nil {
                 return err
             } else if ipvsDest != nil {
                 setDest = ipvsDest
