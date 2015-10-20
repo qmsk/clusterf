@@ -67,19 +67,51 @@ In terms of performance, the `clusterf` daemons act as a control-plane only: the
 
 ## Additional features
 
-### Routed backends
-The `clusterf` code additionally supports the use of *routed backends*, to redirect traffic to a specific backend via some middle tier.
-This feature enables the separaration of the IPVS traffic handling into two tiers: a scaleable and fault-tolerant stateless frontend using IPVS `droute` forwarding, plus a simple-to-configure stateful backend using IPVS `masq` forwarding.
+### Local configuration
 
-The routed backend support includes local configuration to override routes in etcd, and the ability to advertise a route for local services into etcd.
+The `clusterf-ipvs` daemon supports a local filesystem `-config-path=` configuration tree which is loaded in addition to the configuration in etcd.
+
+### Forwarding configuration
+
+The forwarding method for IPVS destinations can be configured in aggregate for different sets of backends via `/clusterf/routes/...`, using IPv4 address *prefix* information to represent the network topology:
+
+    $ etcdctl get /clusterf/routes/test3
+    {"Prefix4":"10.3.107.0/24","IpvsMethod":"masq"}
+
+This means that any backends configured under `10.3.107.0/24` will be configured with an IPVS *masq* forwarding-method.
+
+
+### Routed backends
+
+The `clusterf` code additionally supports the use of *routed backends*, to redirect traffic to a set of backends via some intermediate *gateway*:
+
+    {"Prefix4":"10.6.107.0/24",Gateway4":"10.107.107.6","IpvsMethod":"droute"}
+
+The backend's IPVS dest will be added using the given *gateway* address (retaining the service's frontend port) in place of the dest's *host:port* address.
+
+This feature enables the separaration of the IPVS traffic handling into two tiers: a scaleable and fault-tolerant stateless frontend tier using IPVS `droute` forwarding, plus a simple-to-configure stateful intermediate tier using IPVS `masq` forwarding.
+
+The `-filter-etcd-routes` can be used to override any routes in etcd on the intermediate tier, which can be used to limit IPVS destinations to local backends only.
+
+The `-advertise-route-*` flags can be used to advertise a route for local backends into etcd for the frontend tier.
+
+### Weighted backends
+
+Each backend can define its own weight, which can be updated at runtime. Backends with a higher weight will recieve proportionally more connections.
+
+A backend weight of zero will prevent new connections being scheduled for the backend, allowing existing connections to continue.
+
+### Backend merging
+
+Overlapping backends are merged. This will happen if multiple backends for a given service resolve to the same IPVS host:port, typically as a result of a route aggregating a set of backends to an intermediate frontend.
+
+The merging is based on the backend weight. The IPVS weight of the merged destination is calculated from the weights of all merged backends, and updated as backends are added/removed/reweighted.
 
 ## Known issues
 
 *   Dead service backends are not cleaned up.
     The `clusterf-docker` daemon will remove any containers that are stopped, but a dead `clusterf-docker` daemon or docker host will result in
     ghost backends in etcd.
-*   Multiple ServiceBackends routed to the same ipvsBackend are not coleasced.
-    This will cause issues with the IPVS backend state for all affected service backends being removed as soon as the first colliding service backend is removed.
 *   Route updates are not propagated to backends.
     Adding/Updating/Removing a route will not be reflected in the IPVS state until the service backends are updated.
 *   The `clusterf-docker` daemon is limited in terms of the policy configuration available.
