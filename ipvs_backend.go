@@ -100,7 +100,9 @@ func (self *ipvsBackend) applyRoute (ipvsService *ipvs.Service, ipvsDest *ipvs.D
     switch ipvsService.Af {
     case syscall.AF_INET:
         if route.Gateway4 != nil {
+            // chaining
             ipvsDest.Addr = route.Gateway4
+            ipvsDest.Port = ipvsService.Port
         }
     }
 
