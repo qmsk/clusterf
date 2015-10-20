@@ -9,10 +9,13 @@ import (
     "syscall"
 )
 
+const IPVS_WEIGHT uint32 = 10
+
 type ipvsBackend struct {
     driver      *IPVSDriver
     frontend    *ipvsFrontend
     state       map[ipvsType]*ipvs.Dest
+    weight      uint32
 }
 
 func makeBackend(frontend *ipvsFrontend) *ipvsBackend {
@@ -26,7 +29,6 @@ func makeBackend(frontend *ipvsFrontend) *ipvsBackend {
 func (self *ipvsBackend) buildDest (ipvsService *ipvs.Service, backend config.ServiceBackend) (*ipvs.Dest, error) {
     ipvsDest := &ipvs.Dest{
         FwdMethod:  self.driver.fwdMethod,
-        Weight:     10,
     }
 
     switch ipvsService.Af {
@@ -109,20 +111,34 @@ func (self *ipvsBackend) applyRoute (ipvsService *ipvs.Service, ipvsDest *ipvs.D
     return ipvsDest, nil
 }
 
+func (self *ipvsBackend) updateWeight(weight uint) {
+    if weight == 0 {
+        self.weight = IPVS_WEIGHT
+    } else {
+        self.weight = uint32(weight) // XXX: check
+    }
+}
+
 // create any instances of this backend, assuming there is no active state
 func (self *ipvsBackend) add(backend config.ServiceBackend) error {
+    self.updateWeight(backend.Weight)
+
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.frontend.state[ipvsType]; ipvsService != nil {
-            if ipvsDest, err := self.buildDest(ipvsService, backend); err != nil {
-                return err
-            } else if ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.add: new %v %v\n", ipvsService, ipvsDest)
+            ipvsDest, err := self.buildDest(ipvsService, backend)
 
-                if err := self.driver.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil  {
-                    return err
-                } else {
-                    self.state[ipvsType] = ipvsDest
-                }
+            if err != nil {
+                // XXX: continue
+                return err
+            }
+            if ipvsDest == nil {
+                continue
+            }
+
+            if upDest, err := self.driver.upDest(ipvsService, ipvsDest, self.weight); err != nil {
+                return err
+            } else {
+                self.state[ipvsType] = upDest
             }
         }
     }
@@ -137,6 +153,10 @@ func (self *ipvsBackend) add(backend config.ServiceBackend) error {
 //
 // TODO: sets any active instances that have changed parameters
 func (self *ipvsBackend) set(backend config.ServiceBackend) error {
+    getWeight := self.weight
+    self.updateWeight(backend.Weight)
+    setWeight := self.weight
+
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.frontend.state[ipvsType]; ipvsService != nil {
             var setDest, getDest *ipvs.Dest
@@ -162,20 +182,29 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
             if setDest == nil {
                 // configured as inactive
             } else if match {
-                log.Printf("clusterf:ipvsBackend.set: set %v %v\n", ipvsService, setDest)
+                log.Printf("clusterf:ipvsBackend.set: set %v %v +%d-%d\n", ipvsService, setDest, setWeight, getWeight)
 
-                // reconfigure active in-place
-                if err := self.driver.ipvsClient.SetDest(*ipvsService, *setDest); err != nil  {
+                // XXX: fwdMethod?
+                // update existing ipvs.Dest in-place
+                if err := self.driver.adjustDest(ipvsService, getDest, int(setWeight) - int(getWeight)); err != nil  {
                     return err
                 }
+
+                setDest = getDest
+
             } else {
                 log.Printf("clusterf:ipvsBackend.set: new %v %v\n", ipvsService, setDest)
 
                 // replace active
-                if err := self.driver.ipvsClient.NewDest(*ipvsService, *setDest); err != nil  {
+                if upDest, err := self.driver.upDest(ipvsService, setDest, setWeight); err != nil {
                     return err
+                } else {
+                    setDest = upDest
                 }
             }
+
+            // may be nil, if the new backend did not have this ipvsType
+            self.state[ipvsType] = setDest
 
             if getDest == nil {
                 // not active
@@ -187,14 +216,11 @@ func (self *ipvsBackend) set(backend config.ServiceBackend) error {
                 log.Printf("clusterf:ipvsBackend.set: del %v %v\n", ipvsService, getDest)
 
                 // replace active
-                if err := self.driver.ipvsClient.DelDest(*ipvsService, *getDest); err != nil {
+                if err := self.driver.downDest(ipvsService, getDest, getWeight); err != nil {
                     // XXX: inconsistent, we now have two dest's
                     return err
                 }
             }
-
-            // may be nil, if the new backend did not have this ipvsType
-            self.state[ipvsType] = setDest
         }
     }
 
@@ -206,13 +232,11 @@ func (self *ipvsBackend) del() error {
     for _, ipvsType := range ipvsTypes {
         if ipvsService := self.frontend.state[ipvsType]; ipvsService != nil {
             if ipvsDest := self.state[ipvsType]; ipvsDest != nil {
-                log.Printf("clusterf:ipvsBackend.del: del %v %v\n", ipvsService, ipvsDest)
-
-                if err := self.driver.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
+                if err := self.driver.downDest(ipvsService, ipvsDest, self.weight); err != nil {
                     return err
-                } else {
-                    self.state[ipvsType] = nil
                 }
+
+                self.state[ipvsType] = nil
             }
         }
     }
