@@ -109,6 +109,9 @@ func (self *ipvsFrontend) del() error {
             } else {
                 self.state[ipvsType] = nil
             }
+
+            // clear cached dest state
+            self.driver.clearService(ipvsService)
         }
     }
 

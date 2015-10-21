@@ -176,6 +176,14 @@ func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest,
     return nil
 }
 
+func (self *IPVSDriver) clearService(ipvsService *ipvs.Service) {
+    for ipvsKey, _ := range self.dests {
+        if ipvsService.String() == ipvsKey.Service {
+            delete(self.dests, ipvsKey)
+        }
+    }
+}
+
 func (self *IPVSDriver) Print() {
     if services, err := self.ipvsClient.ListServices(); err != nil {
         log.Fatalf("ipvs.ListServices: %v\n", err)

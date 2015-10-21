@@ -100,10 +100,10 @@ func (self *Service) newFrontend(frontend config.ServiceFrontend) {
 
     if err := self.driverFrontend.add(frontend); err != nil {
         self.driverError(err)
-    } else {
-        for backendName, backend := range self.Backends {
-            self.newBackend(backendName, backend)
-        }
+    }
+
+    for backendName, backend := range self.Backends {
+        self.newBackend(backendName, backend)
     }
 }
 
@@ -126,7 +126,10 @@ func (self *Service) delFrontend() {
         self.driverError(err)
     }
 
-    // XXX: clear self.driverBackend[*]?
+    // clear backend state
+    for backendName, _ := range self.driverBackends {
+        delete(self.driverBackends, backendName)
+    }
 }
 
 /* Backend actions */
