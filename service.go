@@ -65,14 +65,20 @@ func (self *Service) configBackend(backendName string, action config.Action, bac
         self.Backends[backendName] = backendConfig.Backend
 
     case config.SetConfig:
-        if self.Backends[backendName] != backendConfig.Backend {
-            self.setBackend(backendName, backendConfig.Backend)
-
-            self.Backends[backendName] = backendConfig.Backend
+        if self.Backends[backendName] == backendConfig.Backend {
+            return
         }
 
+        if self.Frontend != nil {
+            self.setBackend(backendName, backendConfig.Backend)
+        }
+
+        self.Backends[backendName] = backendConfig.Backend
+
     case config.DelConfig:
-        self.delBackend(backendName)
+        if self.Frontend != nil {
+            self.delBackend(backendName)
+        }
 
         delete(self.Backends, backendName)
     }
