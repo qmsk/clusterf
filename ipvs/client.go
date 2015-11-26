@@ -12,6 +12,7 @@ import (
 
 type Client struct {
     genlHub         *nlgo.GenlHub
+    genlFamily      nlgo.GenlFamily
 
     logDebug        *log.Logger
     logWarning      *log.Logger
@@ -37,6 +38,17 @@ func (self *Client) init () error {
         self.genlHub = genlHub
     }
 
+    // lookup family
+    if genlFamily := self.genlHub.Family(IPVS_GENL_NAME); genlFamily.Id == 0 {
+        return fmt.Errorf("Invalid genl family: %v", IPVS_GENL_NAME)
+    } else if genlFamily.Version != IPVS_GENL_VERSION {
+        return fmt.Errorf("Unsupported ipvs genl family: %+v", genlFamily)
+    } else {
+        self.logDebug.Printf("genlFamily: %+v\n", genlFamily)
+
+        self.genlFamily = genlFamily
+    }
+
     return nil
 }
 
@@ -55,24 +67,24 @@ type Request struct {
 func (self *Client) request (request Request, responsePolicy nlgo.MapPolicy, responseHandler func (attrs nlgo.AttrMap) error) error {
     self.logDebug.Printf("Client.request: cmd=%02x flags=%04x attrs=%v", request.Cmd, request.Flags, request.Attrs)
 
-    if out, err := self.genlHub.Request(IPVS_GENL_NAME, IPVS_GENL_VERSION, request.Cmd, request.Flags, nil, request.Attrs); err != nil {
+    msg := self.genlFamily.Request(request.Cmd, request.Flags, nil, request.Attrs.Bytes())
+
+    if out, err := self.genlHub.Sync(msg); err != nil {
         return err
     } else {
         for _, msg := range out {
             if msg.Header.Type == syscall.NLMSG_ERROR {
-                if msgErr, ok := msg.Error.(nlgo.MsgError); !ok {
-                    return msg.Error
-                } else if msgErr.In.Error != 0 {
-                    return msg.Error
+                if msgErr := nlgo.NlMsgerr(msg.NetlinkMessage); msgErr.Payload().Error != 0 {
+                    return msgErr
                 } else {
                     // ack
                 }
             } else if msg.Header.Type == syscall.NLMSG_DONE {
                 self.logDebug.Printf("Client.request: done")
 
-            } else if msg.Family == IPVS_GENL_NAME {
-                if attrsValue, err := responsePolicy.Parse(msg.Payload); err != nil {
-                    return fmt.Errorf("ipvs:Client.request: Invalid response: %s\n%s", err, hex.Dump(msg.Payload))
+            } else if msg.Family == self.genlFamily {
+                if attrsValue, err := responsePolicy.Parse(msg.Body()); err != nil {
+                    return fmt.Errorf("ipvs:Client.request: Invalid response: %s\n%s", err, hex.Dump(msg.Data))
                 } else if attrMap, ok := attrsValue.(nlgo.AttrMap); !ok {
                     return fmt.Errorf("ipvs:Client.request: Invalid attrs value: %v", attrsValue)
                 } else {
@@ -95,15 +107,15 @@ func (self *Client) request (request Request, responsePolicy nlgo.MapPolicy, res
 func (self *Client) exec (request Request) error {
     self.logDebug.Printf("Client.exec: cmd=%02x flags=%04x...", request.Cmd, request.Flags)
 
-    if out, err := self.genlHub.Request(IPVS_GENL_NAME, IPVS_GENL_VERSION, request.Cmd, request.Flags, nil, request.Attrs); err != nil {
+    msg := self.genlFamily.Request(request.Cmd, request.Flags, nil, request.Attrs.Bytes())
+
+    if out, err := self.genlHub.Sync(msg); err != nil {
         return err
     } else {
         for _, msg := range out {
             if msg.Header.Type == syscall.NLMSG_ERROR {
-                if msgErr, ok := msg.Error.(nlgo.MsgError); !ok {
-                    return msg.Error
-                } else if msgErr.In.Error != 0 {
-                    return msg.Error
+                if msgErr := nlgo.NlMsgerr(msg.NetlinkMessage); msgErr.Payload().Error != 0 {
+                    return msgErr
                 } else {
                     // ack
                 }
