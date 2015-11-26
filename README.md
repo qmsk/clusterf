@@ -126,4 +126,4 @@ The merging is based on the backend weight. The IPVS weight of the merged destin
 
 ## Acknowledgments
 
-This work was supported by the Academy of Finland project "Cloud Security Services" at Aalto University Department of Communications and Networking.
+This work was supported by the Academy of Finland project ["Cloud Security Services" (CloSe)](https://wiki.aalto.fi/display/CloSeProject/CloSe+Project+Public+Homepage) at Aalto University Department of Communications and Networking.
