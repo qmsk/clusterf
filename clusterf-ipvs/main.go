@@ -1,8 +1,8 @@
 package main
 
 import (
-    "qmsk.net/clusterf/config"
-    "qmsk.net/clusterf"
+    "github.com/qmsk/clusterf/config"
+    "github.com/qmsk/clusterf"
     "flag"
     "log"
     "os"

@@ -1,9 +1,9 @@
 package clusterf
 
 import (
-    "qmsk.net/clusterf/config"
+    "github.com/qmsk/clusterf/config"
     "fmt"
-    "qmsk.net/clusterf/ipvs"
+    "github.com/qmsk/clusterf/ipvs"
     "log"
     "net"
     "syscall"

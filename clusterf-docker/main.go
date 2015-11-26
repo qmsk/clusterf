@@ -1,7 +1,7 @@
 package main
 import (
-    "qmsk.net/clusterf/config"
-    "qmsk.net/clusterf/docker"
+    "github.com/qmsk/clusterf/config"
+    "github.com/qmsk/clusterf/docker"
     "flag"
     "fmt"
     "log"

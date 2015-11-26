@@ -4,7 +4,7 @@ package clusterf
  */
 
 import (
-    "qmsk.net/clusterf/config"
+    "github.com/qmsk/clusterf/config"
     "fmt"
     "log"
 )

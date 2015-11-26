@@ -2,7 +2,7 @@ package clusterf
 
 import (
     "fmt"
-    "qmsk.net/clusterf/ipvs"
+    "github.com/qmsk/clusterf/ipvs"
     "log"
     "syscall"
 )
