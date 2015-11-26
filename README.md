@@ -123,3 +123,7 @@ The merging is based on the backend weight. The IPVS weight of the merged destin
 
 *   Implement a docker networking extension to configure the public VIP directly within the docker container.
     Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
+
+## Acknowledgments
+
+This work was supported by the Academy of Finland project "Cloud Security Services" at Aalto University Department of Communications and Networking.
