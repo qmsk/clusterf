@@ -31,29 +31,34 @@ type self struct {
     containers  map[string]*containerState
 }
 
-// Update container state
+// Update container state from docker API
 func (self *self) containerEvent(containerEvent docker.ContainerEvent) {
     containerState := self.containers[containerEvent.ID]
 
-    if containerState != nil && !containerEvent.Running {
-        log.Printf("containerEvent %s:%s: teardown\n", containerEvent.Status, containerEvent.ID)
+    if containerEvent.Running {
+        if containerEvent.State == nil {
+            log.Printf("containerEvent %v: unknown\n", containerEvent)
 
-        self.teardownContainer(containerState)
-
-        delete(self.containers, containerEvent.ID)
-
-    } else if containerEvent.Running && containerEvent.State != nil {
-        if containerState == nil {
+        } else if containerState == nil {
             log.Printf("containerEvent %v: new\n", containerEvent)
 
             self.containers[containerEvent.ID] = self.newContainer(containerEvent.State)
+
         } else {
             log.Printf("containerEvent %v sync\n", containerEvent)
 
             self.syncContainer(containerState, containerEvent.State)
         }
     } else {
-        log.Printf("containerEvent %v: unknown\n", containerEvent)
+        if containerState == nil {
+            log.Printf("containerEvent %v: skip\n", containerEvent)
+        } else {
+            log.Printf("containerEvent %v: teardown\n", containerEvent)
+
+            self.teardownContainer(containerState)
+
+            delete(self.containers, containerEvent.ID)
+        }
     }
 }
 
@@ -85,25 +90,11 @@ func main() {
         self.docker = docker
     }
 
-    // scan
-    if containers, err := self.docker.List(); err != nil {
-        log.Fatalf("docker:Docker.List: %v\n", err)
-    } else {
-        log.Printf("docker:Docker.List...\n")
-
-        for _, container := range containers {
-
-            if container.Running {
-                self.containers[container.ID] = self.newContainer(container)
-            }
-        }
-    }
-
     // sync
-    if containerEvents, err := self.docker.Subscribe(); err != nil {
-        log.Fatalf("docker:Docker.Subscribe: %v\n", err)
+    if containerEvents, err := self.docker.Sync(); err != nil {
+        log.Fatalf("docker:Docker.Sync: %v\n", err)
     } else {
-        log.Printf("docker:Docker.Subscribe...\n")
+        log.Printf("docker:Docker.Sync...\n")
 
         for containerEvent := range containerEvents {
             self.containerEvent(containerEvent)
