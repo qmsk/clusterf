@@ -81,7 +81,16 @@ func (self DockerConfig) Open() (*Docker, error) {
 }
 
 func (self *Docker) open() error {
-    if dockerClient, err := docker.NewClient(self.config.Endpoint); err != nil {
+    var dockerClient *docker.Client
+    var err error
+
+    if self.config.Endpoint != "" {
+        dockerClient, err = docker.NewClient(self.config.Endpoint)
+    } else {
+        dockerClient, err = docker.NewClientFromEnv()
+    }
+
+    if err != nil {
         return err
     } else {
         self.client = dockerClient

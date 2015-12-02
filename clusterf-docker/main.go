@@ -14,7 +14,7 @@ var (
 )
 
 func init() {
-    flag.StringVar(&dockerConfig.Endpoint, "docker-endpoint", "unix:///var/run/docker.sock",
+    flag.StringVar(&dockerConfig.Endpoint, "docker-endpoint", "",
         "Docker client endpoint for dockerd")
 
     flag.StringVar(&etcdConfig.Machines, "etcd-machines", "http://127.0.0.1:2379",
