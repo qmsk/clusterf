@@ -65,6 +65,26 @@ In terms of performance, the `clusterf` daemons act as a control-plane only: the
     Prot LocalAddress:Port Scheduler Flags
       -> RemoteAddress:Port           Forward Weight ActiveConn InActConn
 
+## Docker integration
+
+The docker integration uses container (image) labels:
+
+    net.qmsk.clusterf.service=$service
+    net.qmsk.clusterf.backend.tcp=$port
+    net.qmsk.clusterf.backend.udp=$port
+
+A container can also be a backend in multiple different services:
+
+    net.qmsk.clusterf.service="$service1 $service2"
+    net.qmsk.clusterf.backend:$service.tcp=$port
+    net.qmsk.clusterf.backend:$service.udp=$port
+
+As an example:
+
+    docker run --rm -it --expose 8080 -l net.qmsk.clusterf.service=test -l net.qmsk.clusterf.backend.tcp=8080 ...
+
+The ports must be EXPOSE'd on the container, but do not necessarily need to be published. The backend will be configured using the internal address of the container.
+
 ## Additional features
 
 ### Local configuration
