@@ -1,9 +1,9 @@
 package main
+
 import (
     "github.com/qmsk/clusterf/config"
     "github.com/qmsk/clusterf/docker"
     "flag"
-    "fmt"
     "log"
     "os"
 )
@@ -24,103 +24,42 @@ func init() {
 }
 
 type self struct {
-    configEtcd *config.Etcd
-    docker *docker.Docker
+    configEtcd  *config.Etcd
+    docker      *docker.Docker
 
     // registered state
-    containerConfig map[string]*config.ConfigServiceBackend
-}
-
-// Translate a docker container to a service config
-func (self *self) configContainer (container *docker.Container) *config.ConfigServiceBackend {
-    configBackend := config.ConfigServiceBackend{}
-
-    if serviceLabel, set := container.Labels["net.qmsk.clusterf.service"]; !set {
-        return nil
-    } else {
-        configBackend.ServiceName = serviceLabel
-    }
-
-    configBackend.BackendName = container.ID
-    configBackend.Backend.IPv4 = container.IPv4.String()
-
-    for _, port := range container.Ports {
-        // limit by label?
-        portLabel := container.Labels[fmt.Sprintf("net.qmsk.clusterf.backend.%s", port.Proto)]
-
-        if portLabel != "" && portLabel != fmt.Sprintf("%v", port.Port) {
-            continue
-        }
-
-        switch port.Proto {
-        case "tcp":
-            configBackend.Backend.TCP = port.Port
-        case "udp":
-            configBackend.Backend.UDP = port.Port
-        }
-    }
-
-    return &configBackend
-}
-
-// Synchronize active container state to config
-func (self *self) syncContainer(container *docker.Container) {
-    containerConfig := self.configContainer(container)
-
-    if self.containerConfig[container.ID] == containerConfig {
-        // no-op
-        log.Printf("syncContainer %s: no-op\n", container.ID)
-
-        return
-    }
-
-    if err := self.configEtcd.Publish(containerConfig); err != nil {
-        log.Printf("syncContainer %s: publish %#v: %v\n", container.ID, containerConfig, err)
-
-    } else {
-        log.Printf("syncContainer %s: publish %#v\n", container.ID, containerConfig)
-
-        self.containerConfig[container.ID] = containerConfig
-    }
-}
-
-// Teardown container state if active
-func (self *self) teardownContainer(containerID string) {
-    if containerConfig, exists := self.containerConfig[containerID]; !exists {
-        log.Printf("teardownContainer %s: unknown\n", containerID)
-
-    } else {
-        if err := self.configEtcd.Retract(containerConfig); err != nil {
-            log.Printf("teardownContainer %s: retract #%v: %v\n", containerID, containerConfig, err)
-        } else {
-            log.Printf("teardownContainer %s: retract #%v\n", containerID, containerConfig)
-        }
-
-        // cleanup regardless
-        delete(self.containerConfig, containerID)
-    }
+    containers  map[string]*containerState
 }
 
 // Update container state
 func (self *self) containerEvent(containerEvent docker.ContainerEvent) {
-    if !containerEvent.Running {
+    containerState := self.containers[containerEvent.ID]
+
+    if containerState != nil && !containerEvent.Running {
         log.Printf("containerEvent %s:%s: teardown\n", containerEvent.Status, containerEvent.ID)
 
-        self.teardownContainer(containerEvent.ID)
+        self.teardownContainer(containerState)
 
-    } else if containerEvent.State != nil {
-        log.Printf("containerEvent %s:%s: sync\n", containerEvent.Status, containerEvent.ID)
+        delete(self.containers, containerEvent.ID)
 
-        self.syncContainer(containerEvent.State)
+    } else if containerEvent.Running && containerEvent.State != nil {
+        if containerState == nil {
+            log.Printf("containerEvent %v: new\n", containerEvent)
 
+            self.containers[containerEvent.ID] = self.newContainer(containerEvent.State)
+        } else {
+            log.Printf("containerEvent %v sync\n", containerEvent)
+
+            self.syncContainer(containerState, containerEvent.State)
+        }
     } else {
-        log.Printf("containerEvent %s:%s: unknown\n", containerEvent.Status, containerEvent.ID)
+        log.Printf("containerEvent %v: unknown\n", containerEvent)
     }
 }
 
 func main() {
     self := self{
-        containerConfig:    make(map[string]*config.ConfigServiceBackend),
+        containers:    make(map[string]*containerState),
     }
 
     flag.Parse()
@@ -150,10 +89,13 @@ func main() {
     if containers, err := self.docker.List(); err != nil {
         log.Fatalf("docker:Docker.List: %v\n", err)
     } else {
-        for _, container := range containers {
-            log.Printf("docker:Docker.List: %#v\n", container)
+        log.Printf("docker:Docker.List...\n")
 
-            self.syncContainer(container)
+        for _, container := range containers {
+
+            if container.Running {
+                self.containers[container.ID] = self.newContainer(container)
+            }
         }
     }
 
@@ -161,9 +103,9 @@ func main() {
     if containerEvents, err := self.docker.Subscribe(); err != nil {
         log.Fatalf("docker:Docker.Subscribe: %v\n", err)
     } else {
-        for containerEvent := range containerEvents {
-            log.Printf("Docker:Docker.Subscribe: %#v\n", containerEvent)
+        log.Printf("docker:Docker.Subscribe...\n")
 
+        for containerEvent := range containerEvents {
             self.containerEvent(containerEvent)
         }
     }
