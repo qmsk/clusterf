@@ -67,7 +67,7 @@ type ContainerEvent struct {
     ID          string
     Status      string
 
-    // Interpretation of running state after this event
+    // Interpretation of State.Running *after* this event; depends on Status
     Running     bool
 
     // Current state of container; may be inconsistent or missing
@@ -219,15 +219,19 @@ func (self *Docker) containerEvent(dockerEvent *docker.APIEvents) (event Contain
         event.State = nil
 
         // XXX: Running is indeterminite, but we can assume it is not?
+        event.Running = containerState.Running
 
     } else {
-        event.Running = containerState.Running
         event.State = containerState
     }
 
-    if dockerEvent.Status == "die" {
-        // XXX: docker seems to be inconsistent about the inspected container State.Running=true/false immediately after a die?
-        event.Running = false
+    switch dockerEvent.Status {
+        case "start":
+            event.Running = true
+
+        case "die", "kill", "stop":
+            // State.Running may still be true, while the container is stopping
+            event.Running = false
     }
 
     return
