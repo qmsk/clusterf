@@ -50,6 +50,10 @@ type Container struct {
     Labels      map[string]string
 }
 
+func (self Container) String() string {
+    return self.ID
+}
+
 type Port struct {
     Proto       string
     Port        uint16
@@ -68,6 +72,10 @@ type ContainerEvent struct {
 
     // Current state of container; may be inconsistent or missing
     State       *Container
+}
+
+func (self ContainerEvent) String() string {
+    return fmt.Sprintf("%s:%s", self.Status, self.ID)
 }
 
 func (self DockerConfig) Open() (*Docker, error) {
