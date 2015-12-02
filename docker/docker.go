@@ -219,10 +219,10 @@ func (self *Docker) containerEvent(dockerEvent *docker.APIEvents) (event Contain
         event.State = nil
 
         // XXX: Running is indeterminite, but we can assume it is not?
-        event.Running = containerState.Running
 
     } else {
         event.State = containerState
+        event.Running = containerState.Running
     }
 
     switch dockerEvent.Status {
