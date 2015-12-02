@@ -55,7 +55,11 @@ type Event struct {
 }
 
 type Config interface {
-    publish() (node Node, err error)
+    // Unique path for this config
+    Path() string
+
+    // JSON-encodeable value 
+    Value() interface{}
 }
 
 /* Different config objects */

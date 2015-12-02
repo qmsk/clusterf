@@ -224,7 +224,7 @@ func (self *Etcd) path(parts ...string) string {
 func (self *Etcd) Publish(config Config) error {
     var ttl uint64 = 0
 
-    if node, err := config.publish(); err != nil {
+    if node, err := makeNode(config); err != nil {
         return err
     } else if _, err := self.client.Set(self.path(node.Path), node.Value, ttl); err != nil {
         return err
@@ -235,9 +235,7 @@ func (self *Etcd) Publish(config Config) error {
 
 // Retract a config from etcd
 func (self *Etcd) Retract(config Config) error {
-    if node, err := config.publish(); err != nil {
-        return err
-    } else if _, err := self.client.Delete(self.path(node.Path), false); err != nil {
+    if _, err := self.client.Delete(self.path(config.Path()), false); err != nil {
         return err
     } else {
         return nil

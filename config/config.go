@@ -5,32 +5,44 @@ import (
     "strings"
 )
 
-func makeDirNode(pathParts...string) (Node, error) {
-    path := strings.Join(pathParts, "/")
-
-    return Node{Path: path, IsDir: true}, nil
+func makePath(pathParts ...string) string {
+    return strings.Join(pathParts, "/")
 }
 
-func makeNode(jsonValue interface{}, pathParts...string) (Node, error) {
-    path := strings.Join(pathParts, "/")
-    value, err := json.Marshal(jsonValue)
-
-    return Node{Path: path, Value: string(value)}, err
+func makeDirNode(config Config) (Node, error) {
+    return Node{Path: config.Path(), IsDir: true}, nil
 }
 
-func (self ConfigService) publish() (node Node, err error) {
-    return makeDirNode("services", self.ServiceName)
+func makeNode(config Config) (Node, error) {
+    jsonValue, err := json.Marshal(config.Value())
+
+    return Node{Path: config.Path(), Value: string(jsonValue)}, err
 }
 
-func (self ConfigServiceFrontend) publish() (node Node, err error) {
-    return makeNode(self.Frontend, "services", self.ServiceName, "frontend")
+func (self ConfigService) Path() string {
+    return makePath("services", self.ServiceName)
+}
+func (self ConfigService) Value() interface{} {
+    return nil
 }
 
-func (self ConfigServiceBackend) publish() (node Node, err error) {
-    return makeNode(self.Backend, "services", self.ServiceName, "backends", self.BackendName)
+func (self ConfigServiceFrontend) Path() string {
+    return makePath("services", self.ServiceName, "frontend")
+}
+func (self ConfigServiceFrontend) Value() interface{} {
+    return self.Frontend
 }
 
-func (self ConfigRoute) publish() (node Node, err error) {
-    return makeNode(self.Route, "routes", self.RouteName)
+func (self ConfigServiceBackend) Path() string {
+    return makePath("services", self.ServiceName, "backends", self.BackendName)
+}
+func (self ConfigServiceBackend) Value() interface{} {
+    return self.Backend
 }
 
+func (self ConfigRoute) Path() string {
+    return makePath("routes", self.RouteName)
+}
+func (self ConfigRoute) Value() interface{} {
+    return self.Route
+}
