@@ -30,6 +30,11 @@ func (self *Services) get(name string) *Service {
     if !serviceExists {
         service = newService(name)
         self.services[name] = service
+
+        // initial sync
+        if self.driver != nil {
+            service.sync(self.driver)
+        }
     }
 
     return service
