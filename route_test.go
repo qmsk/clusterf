@@ -40,5 +40,34 @@ func TestNewConfigRoute(t *testing.T) {
     }
 }
 
-// TODO: test Services.ConfigEvent(config.DelConfig, config.ConfigRoute{RouteName:""})
-//       requires mock IPVSDriver to use for SyncIPVS()
+// test Services.ConfigEvent(config.DelConfig, config.ConfigRoute{RouteName:""})
+func TestDelConfigRoutes(t *testing.T) {
+    services := NewServices()
+
+    // initial configs from one source
+    services.NewConfig(&config.ConfigRoute{ConfigSource: "test1", RouteName:""})
+    services.NewConfig(&config.ConfigRoute{ConfigSource: "test1", RouteName:"test1", Route:config.Route{Prefix4:"10.0.1.0/24", IpvsMethod:"droute"}})
+
+    // initial configs from second source
+    services.NewConfig(&config.ConfigRoute{ConfigSource: "test2", RouteName:""})
+    services.NewConfig(&config.ConfigRoute{ConfigSource: "test2", RouteName:"test2", Route:config.Route{Prefix4:"10.0.2.0/24", IpvsMethod:"droute"}})
+
+    // sync
+    if _, err := services.SyncIPVS(IpvsConfig{mock: true}); err != nil {
+        t.Fatalf("services.SyncIPVS: %v", err)
+    }
+
+    // delete second source
+    services.ConfigEvent(config.Event{Action: config.DelConfig, Config: &config.ConfigRoute{RouteName:"", ConfigSource:"test2"}})
+
+    // test first source's route
+    route1 := services.routes["test1"]
+    route2 := services.routes["test2"]
+
+    if route1 == nil {
+        t.Errorf("test1 Route got deleted after recursive test2 DelConfig")
+    }
+    if route2 != nil {
+        t.Errorf("test2 route remains after recursive test2 DelConfig")
+    }
+}
