@@ -88,7 +88,7 @@ func (self *ipvsFrontend) add(frontend config.ServiceFrontend) error {
         } else if ipvsService != nil {
             log.Printf("clusterf:ipvsFrontend.add: new %v\n", ipvsService)
 
-            if err := self.driver.ipvsClient.NewService(*ipvsService); err != nil  {
+            if err := self.driver.upService(ipvsService); err != nil  {
                 return err
             } else {
                 self.state[ipvsType] = ipvsService
@@ -104,14 +104,11 @@ func (self *ipvsFrontend) del() error {
         if ipvsService := self.state[ipvsType]; ipvsService != nil {
             log.Printf("clusterf:ipvsFrontend.del: del %v\n", ipvsService)
 
-            if err := self.driver.ipvsClient.DelService(*ipvsService); err != nil  {
+            if err := self.driver.downService(ipvsService); err != nil  {
                 return err
             } else {
                 self.state[ipvsType] = nil
             }
-
-            // clear cached dest state
-            self.driver.clearService(ipvsService)
         }
     }
 

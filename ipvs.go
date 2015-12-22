@@ -95,6 +95,14 @@ func (self *IPVSDriver) newFrontend() *ipvsFrontend {
     return makeFrontend(self)
 }
 
+func (self *IPVSDriver) upService(ipvsService *ipvs.Service) error {
+    if err := self.ipvsClient.NewService(*ipvsService); err != nil  {
+        return err
+    }
+
+    return nil
+}
+
 // bring up a service-dest with given weight, mergeing if necessary
 func (self *IPVSDriver) upDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, weight uint32) (*ipvs.Dest, error) {
     ipvsKey := ipvsKey{ipvsService.String(), ipvsDest.String()}
@@ -176,12 +184,19 @@ func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest,
     return nil
 }
 
-func (self *IPVSDriver) clearService(ipvsService *ipvs.Service) {
+func (self *IPVSDriver) downService(ipvsService *ipvs.Service) error {
+    if err := self.ipvsClient.DelService(*ipvsService); err != nil  {
+        return err
+    }
+
+    // flush any dests, since the kernel will also clear them out
     for ipvsKey, _ := range self.dests {
         if ipvsService.String() == ipvsKey.Service {
             delete(self.dests, ipvsKey)
         }
     }
+
+    return nil
 }
 
 func (self *IPVSDriver) Print() {
