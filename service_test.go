@@ -111,3 +111,32 @@ func TestServiceSync(t *testing.T) {
         t.Errorf("mismatching sync dest: %v", ipvsDriver.dests[ipvsKey])
     }
 }
+
+// Test adding a new ConfigServiceFrontend after sync
+// https://github.com/qmsk/clusterf/issues/4
+func TestServiceAdd(t *testing.T) {
+    serviceFrontend := config.ServiceFrontend{IPv4:"10.0.1.1", TCP:80}
+    serviceBackend := config.ServiceBackend{IPv4:"10.1.0.1", TCP:80}
+
+    services := NewServices()
+
+    // sync
+    ipvsDriver, err := services.SyncIPVS(IpvsConfig{FwdMethod: "masq", SchedName: "wlc", mock: true})
+    if err != nil {
+        t.Fatalf("services.SyncIPVS: %v", err)
+    }
+
+    // add
+    services.ConfigEvent(config.Event{Action:config.SetConfig, Config:&config.ConfigServiceFrontend{ConfigSource:"test", ServiceName:"test", Frontend:serviceFrontend}})
+    services.ConfigEvent(config.Event{Action:config.SetConfig, Config:&config.ConfigServiceBackend{ConfigSource:"test", ServiceName:"test", BackendName:"test1", Backend:serviceBackend}})
+
+    // test ipvsDriver.dests
+    ipvsKey := ipvsKey{"inet+tcp://10.0.1.1:80", "10.1.0.1:80"}
+
+    if len(ipvsDriver.dests) != 1 {
+        t.Errorf("incorrect sync dests: %v", ipvsDriver.dests)
+    }
+    if ipvsDriver.dests[ipvsKey] == nil {
+        t.Errorf("missing sync dest: %v", ipvsKey)
+    }
+}
