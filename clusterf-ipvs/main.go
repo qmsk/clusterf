@@ -32,7 +32,7 @@ func init() {
         "Dump initial IPVS config")
     flag.StringVar(&ipvsConfig.FwdMethod, "ipvs-fwd-method", "masq",
         "IPVS Forwarding method: masq tunnel droute")
-    flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", "wlc",
+    flag.StringVar(&ipvsConfig.SchedName, "ipvs-sched-name", clusterf.IPVS_SCHED_NAME,
         "IPVS Service Scheduler")
 
     flag.StringVar(&advertiseRouteConfig.RouteName, "advertise-route-name", "",

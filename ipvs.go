@@ -7,6 +7,9 @@ import (
     "syscall"
 )
 
+const IPVS_FWD_METHOD = ipvs.IP_VS_CONN_F_MASQ
+const IPVS_SCHED_NAME = "wlc"
+
 type ipvsType struct {
     Af          ipvs.Af
     Protocol    ipvs.Protocol
@@ -50,13 +53,19 @@ func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
         dests:  make(map[ipvsKey]*ipvs.Dest),
     }
 
-    if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
+    if self.FwdMethod == "" {
+        driver.fwdMethod = IPVS_FWD_METHOD
+    } else if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
         return nil, err
     } else {
         driver.fwdMethod = fwdMethod
     }
 
-    driver.schedName = self.SchedName
+    if self.SchedName == "" {
+        driver.schedName = IPVS_SCHED_NAME
+    } else {
+        driver.schedName = self.SchedName
+    }
 
     // IPVS
     if ipvsClient, err := ipvs.Open(); err != nil {
