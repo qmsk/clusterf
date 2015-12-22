@@ -31,6 +31,7 @@ type IpvsConfig struct {
     Debug       bool
     FwdMethod   string
     SchedName   string
+    mock        bool        // used for testing; do not actually setup the ipvsClient
 }
 
 type IPVSDriver struct {
@@ -68,7 +69,9 @@ func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
     }
 
     // IPVS
-    if ipvsClient, err := ipvs.Open(); err != nil {
+    if self.mock {
+
+    } else if ipvsClient, err := ipvs.Open(); err != nil {
         return nil, err
     } else {
         log.Printf("ipvs.Open: %+v\n", ipvsClient)
@@ -76,11 +79,13 @@ func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
         driver.ipvsClient = ipvsClient
     }
 
-    if self.Debug {
+    if driver.ipvsClient != nil && self.Debug {
         driver.ipvsClient.SetDebug()
     }
 
-    if info, err := driver.ipvsClient.GetInfo(); err != nil {
+    if driver.ipvsClient == nil {
+        // mock'd
+    } else if info, err := driver.ipvsClient.GetInfo(); err != nil {
         return nil, err
     } else {
         log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
@@ -91,7 +96,9 @@ func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
 
 // Begin initial config sync by flushing the system state
 func (self *IPVSDriver) sync() error {
-    if err := self.ipvsClient.Flush(); err != nil {
+    if self.ipvsClient == nil {
+
+    } else if err := self.ipvsClient.Flush(); err != nil {
         return err
     } else {
         log.Printf("ipvs.Flush")
@@ -105,7 +112,9 @@ func (self *IPVSDriver) newFrontend() *ipvsFrontend {
 }
 
 func (self *IPVSDriver) upService(ipvsService *ipvs.Service) error {
-    if err := self.ipvsClient.NewService(*ipvsService); err != nil  {
+    if self.ipvsClient == nil {
+
+    } else if err := self.ipvsClient.NewService(*ipvsService); err != nil  {
         return err
     }
 
@@ -121,7 +130,8 @@ func (self *IPVSDriver) upDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, w
 
         log.Printf("clusterf:ipvs upDest: new %v %v\n", ipvsService, ipvsDest)
 
-        if err := self.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil {
+        if self.ipvsClient == nil {
+        } else if err := self.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil {
             return ipvsDest, err
         }
 
@@ -134,7 +144,9 @@ func (self *IPVSDriver) upDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, w
 
         mergeDest.Weight += weight
 
-        if err := self.ipvsClient.SetDest(*ipvsService, *mergeDest); err != nil {
+        if self.ipvsClient == nil {
+
+        } else if err := self.ipvsClient.SetDest(*ipvsService, *mergeDest); err != nil {
             return mergeDest, err
         }
 
@@ -153,7 +165,9 @@ func (self *IPVSDriver) adjustDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Des
     ipvsDest.Weight = uint32(int(ipvsDest.Weight) + weightDelta)
 
     // reconfigure active in-place
-    if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil  {
+    if self.ipvsClient == nil {
+
+    } else if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil  {
         return err
     }
 
@@ -173,7 +187,9 @@ func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest,
 
         ipvsDest.Weight -= weight
 
-        if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil {
+        if self.ipvsClient == nil {
+
+        } else if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil {
             return err
         }
 
@@ -183,7 +199,9 @@ func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest,
     } else {
         log.Printf("clusterf:ipvs downdest: del %v %v\n", ipvsService, ipvsDest)
 
-        if err := self.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
+        if self.ipvsClient == nil {
+
+        } else if err := self.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
             return err
         }
 
@@ -194,7 +212,9 @@ func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest,
 }
 
 func (self *IPVSDriver) downService(ipvsService *ipvs.Service) error {
-    if err := self.ipvsClient.DelService(*ipvsService); err != nil  {
+    if self.ipvsClient == nil {
+
+    } else if err := self.ipvsClient.DelService(*ipvsService); err != nil {
         return err
     }
 
@@ -209,7 +229,9 @@ func (self *IPVSDriver) downService(ipvsService *ipvs.Service) error {
 }
 
 func (self *IPVSDriver) Print() {
-    if services, err := self.ipvsClient.ListServices(); err != nil {
+    if self.ipvsClient == nil {
+        fmt.Printf("Mock'd\n")
+    } else if services, err := self.ipvsClient.ListServices(); err != nil {
         log.Fatalf("ipvs.ListServices: %v\n", err)
     } else {
         fmt.Printf("Proto                           Addr:Port\n")
