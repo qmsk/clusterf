@@ -8,7 +8,7 @@ import (
 )
 
 func loadBackend (t *testing.T, value string) ServiceBackend {
-    node := Node{Path: "services/test/backends/test", Value: value}
+    node := Node{Source:"test", Path: "services/test/backends/test", Value: value}
 
     if backend, err := node.loadServiceBackend(); err != nil {
         t.Fatalf("ServiceBackend.loadEtcd(%v): %s", value, err)
@@ -34,89 +34,94 @@ var testSync = []struct {
 }{
     {
         action: NewConfig,
-        node: Node{Path:"", Value:"haha"},
+        node: Node{Source:"test", Path:"", Value:"haha"},
         error: "Ignore unknown node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"services", Value:"haha"},
+        node: Node{Source:"test", Path:"services", Value:"haha"},
         error: "Ignore unknown node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"wtf", Value:"haha"},
+        node: Node{Source:"test", Path:"wtf", Value:"haha"},
         error: "Ignore unknown node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"wtf", IsDir:true},
+        node: Node{Source:"test", Path:"wtf", IsDir:true},
         error: "Ignore unknown node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/wtf/frontend", IsDir:true},
+        node: Node{Source:"test", Path:"services/wtf/frontend", IsDir:true},
         error: "Ignore unknown service wtf node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/wtf/backends/test", IsDir:true},
+        node: Node{Source:"test", Path:"services/wtf/backends/test", IsDir:true},
         error: "Ignore unknown service wtf backends node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/wtf/backends/test/three", Value: "3"},
+        node: Node{Source:"test", Path:"services/wtf/backends/test/three", Value: "3"},
         error: "Ignore unknown service wtf backends node",
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/wtf/asdf", Value: "quux"},
+        node: Node{Source:"test", Path:"services/wtf/asdf", Value: "quux"},
         error: "Ignore unknown service wtf node",
     },
 
     {
         action: NewConfig,
-        node: Node{Path:"services/test/frontend", Value:"not json"},
+        node: Node{Source:"test", Path:"services/test/frontend", Value:"not json"},
         error: "service test frontend: invalid character 'o' in literal null",
     },
 
     {
         action: NewConfig,
-        node: Node{Path:"", IsDir:true},
+        node: Node{Source:"test", Path:"", IsDir:true},
     },
     {
         action: NewConfig,
-        node: Node{Path:"services", IsDir:true},
+        node: Node{Source:"test", Path:"services", IsDir:true},
         event: Event{Action: NewConfig, Config: &ConfigService{
+            ConfigSource: "test",
             ServiceName: "",
         }},
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test", IsDir:true},
+        node: Node{Source:"test", Path:"services/test", IsDir:true},
         event: Event{Action: NewConfig, Config: &ConfigService{
+            ConfigSource: "test",
             ServiceName: "test",
         }},
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test/frontend", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
+        node: Node{Source:"test", Path:"services/test/frontend", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
         event: Event{Action: NewConfig, Config: &ConfigServiceFrontend{
+            ConfigSource: "test",
             ServiceName: "test",
             Frontend:    ServiceFrontend{IPv4: "127.0.0.1", TCP: 8080},
         }},
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test/backends", IsDir:true},
+        node: Node{Source:"test", Path:"services/test/backends", IsDir:true},
         event: Event{Action: NewConfig, Config: &ConfigServiceBackend{
+            ConfigSource: "test",
             ServiceName: "test",
             BackendName: "",
         }},
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test/backends/test1", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
+        node: Node{Source:"test", Path:"services/test/backends/test1", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
         event: Event{Action: NewConfig, Config: &ConfigServiceBackend{
+            ConfigSource: "test",
             ServiceName: "test",
             BackendName: "test1",
             Backend:     ServiceBackend{IPv4: "127.0.0.1", TCP: 8081},
@@ -124,8 +129,9 @@ var testSync = []struct {
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test/backends/test2", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
+        node: Node{Source:"test", Path:"services/test/backends/test2", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
         event: Event{Action: NewConfig, Config: &ConfigServiceBackend{
+            ConfigSource: "test",
             ServiceName: "test",
             BackendName: "test2",
             Backend:     ServiceBackend{IPv4: "127.0.0.1", TCP: 8082},
@@ -133,8 +139,9 @@ var testSync = []struct {
     },
     {
         action: NewConfig,
-        node: Node{Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}"},
+        node: Node{Source:"test", Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}"},
         event: Event{Action: NewConfig, Config: &ConfigServiceFrontend{
+            ConfigSource: "test",
             ServiceName: "test6",
             Frontend:    ServiceFrontend{IPv6: "2001:db8::1", TCP: 8080},
         }},
@@ -142,28 +149,45 @@ var testSync = []struct {
 
     {
         action: DelConfig,
-        node: Node{Path:"services/test3/backends/test1"},
-        event: Event{Action: DelConfig, Config: &ConfigServiceBackend{ServiceName: "test3", BackendName: "test1"}},
+        node: Node{Source:"test", Path:"services/test3/backends/test1"},
+        event: Event{Action: DelConfig, Config: &ConfigServiceBackend{
+            ConfigSource: "test",
+            ServiceName: "test3",
+            BackendName: "test1",
+        }},
     },
     {
         action: DelConfig,
-        node: Node{Path:"services/test3/backends", IsDir:true},
-        event: Event{Action: DelConfig, Config: &ConfigServiceBackend{ServiceName: "test3", BackendName: ""}},
+        node: Node{Source:"test", Path:"services/test3/backends", IsDir:true},
+        event: Event{Action: DelConfig, Config: &ConfigServiceBackend{
+            ConfigSource: "test",
+            ServiceName: "test3",
+            BackendName: "",
+        }},
     },
     {
         action: DelConfig,
-        node: Node{Path:"services/test3", IsDir:true},
-        event: Event{Action: DelConfig, Config: &ConfigService{ServiceName: "test3"}},
+        node: Node{Source:"test", Path:"services/test3", IsDir:true},
+        event: Event{Action: DelConfig, Config: &ConfigService{
+            ConfigSource: "test",
+            ServiceName: "test3",
+        }},
     },
     {
         action: DelConfig,
-        node: Node{Path:"services/test", IsDir:true},
-        event: Event{Action: DelConfig, Config: &ConfigService{ServiceName: "test"}},
+        node: Node{Source:"test", Path:"services/test", IsDir:true},
+        event: Event{Action: DelConfig, Config: &ConfigService{
+            ConfigSource: "test",
+            ServiceName: "test",
+        }},
     },
     {
         action: DelConfig,
-        node: Node{Path:"services", IsDir:true},
-        event: Event{Action: DelConfig, Config: &ConfigService{ServiceName: ""}},
+        node: Node{Source:"test", Path:"services", IsDir:true},
+        event: Event{Action: DelConfig, Config: &ConfigService{
+            ConfigSource: "test",
+            ServiceName: "",
+        }},
     },
 }
 
