@@ -13,6 +13,8 @@ type Node struct {
 
     // json-encoded
     Value   string
+
+    Source  ConfigSource
 }
 
 func (self *Node) loadServiceFrontend() (frontend ServiceFrontend, err error) {
@@ -49,27 +51,27 @@ func syncConfig(node Node) (Config, error) {
 
     } else if len(nodePath) == 1 && nodePath[0] == "services" && node.IsDir {
         // recursive on all services
-        return &ConfigService{ }, nil
+        return &ConfigService{ConfigSource: node.Source}, nil
 
     } else if len(nodePath) >= 2 && nodePath[0] == "services" {
         serviceName := nodePath[1]
 
         if len(nodePath) == 2 && node.IsDir {
-            return &ConfigService{ServiceName: serviceName}, nil
+            return &ConfigService{ServiceName: serviceName, ConfigSource: node.Source}, nil
 
         } else if len(nodePath) == 3 && nodePath[2] == "frontend" && !node.IsDir {
             if node.Value == "" {
                 // deleted node has empty value
-                return &ConfigServiceFrontend{ServiceName: serviceName}, nil
+                return &ConfigServiceFrontend{ServiceName: serviceName, ConfigSource: node.Source}, nil
             } else if frontend, err := node.loadServiceFrontend(); err != nil {
                 return nil, fmt.Errorf("service %s frontend: %s", serviceName, err)
             } else {
-                return &ConfigServiceFrontend{ServiceName: serviceName, Frontend: frontend}, nil
+                return &ConfigServiceFrontend{ServiceName: serviceName, Frontend: frontend, ConfigSource: node.Source}, nil
             }
 
         } else if len(nodePath) == 3 && nodePath[2] == "backends" && node.IsDir {
             // recursive on all backends
-            return &ConfigServiceBackend{ServiceName: serviceName}, nil
+            return &ConfigServiceBackend{ServiceName: serviceName, ConfigSource: node.Source}, nil
 
         } else if len(nodePath) >= 4 && nodePath[2] == "backends" {
             backendName := nodePath[3]
@@ -77,11 +79,11 @@ func syncConfig(node Node) (Config, error) {
             if len(nodePath) == 4 && !node.IsDir {
                 if node.Value == "" {
                     // deleted node has empty value
-                    return &ConfigServiceBackend{ServiceName: serviceName, BackendName: backendName}, nil
+                    return &ConfigServiceBackend{ServiceName: serviceName, BackendName: backendName, ConfigSource: node.Source}, nil
                 } else if backend, err := node.loadServiceBackend(); err != nil {
                     return nil, fmt.Errorf("service %s backend %s: %s", serviceName, backendName, err)
                 } else {
-                    return &ConfigServiceBackend{ServiceName: serviceName, BackendName: backendName, Backend: backend}, nil
+                    return &ConfigServiceBackend{ServiceName: serviceName, BackendName: backendName, Backend: backend, ConfigSource: node.Source}, nil
                 }
 
             } else {
@@ -102,11 +104,11 @@ func syncConfig(node Node) (Config, error) {
         if len(nodePath) == 2 && !node.IsDir {
             if node.Value == "" {
                 // deleted node has empty value
-                return &ConfigRoute{RouteName: routeName}, nil
+                return &ConfigRoute{RouteName: routeName, ConfigSource: node.Source}, nil
             } else if route, err := node.loadRoute(); err != nil {
                 return nil, fmt.Errorf("route %s: %s", routeName, err)
             } else {
-                return &ConfigRoute{RouteName: routeName, Route: route}, nil
+                return &ConfigRoute{RouteName: routeName, Route: route, ConfigSource: node.Source}, nil
             }
         } else {
             return nil, fmt.Errorf("Ignore unknown route node")

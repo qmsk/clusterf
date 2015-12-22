@@ -62,6 +62,19 @@ type Config interface {
     Value() interface{}
 }
 
+/*
+ * Configuration sources: where the config is coming from
+ */
+type ConfigSource string
+
+const (
+    // A configuration from a local file
+    FileConfigSource ConfigSource = "file"
+
+    // A configuration from Etcd
+    EtcdConfigSource ConfigSource = "etcd"
+)
+
 /* Different config objects */
 
 // Used when a new service directory is created or destroyed.
@@ -69,12 +82,14 @@ type Config interface {
 // May be delievered with an empty ServiceName:"" if *all* services are to be deleted
 type ConfigService struct {
     ServiceName     string
+    ConfigSource    ConfigSource
 }
 
 type ConfigServiceFrontend struct {
     ServiceName     string
 
     Frontend        ServiceFrontend
+    ConfigSource    ConfigSource
 }
 
 // May be delivered with an empty BackendName:"" if *all* service backends are to be deleted
@@ -83,10 +98,12 @@ type ConfigServiceBackend struct {
     BackendName     string
 
     Backend         ServiceBackend
+    ConfigSource    ConfigSource
 }
 
 type ConfigRoute struct {
     RouteName       string
 
     Route           Route
+    ConfigSource    ConfigSource
 }

@@ -43,6 +43,7 @@ func (self *Files) Scan() (configs []Config, err error) {
         node := Node{
             Path:   strings.Trim(strings.TrimPrefix(path, self.config.Path), "/"),
             IsDir:  info.IsDir(),
+            Source: FileConfigSource,
         }
 
         if info.Mode().IsRegular() {

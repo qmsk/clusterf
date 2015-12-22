@@ -105,6 +105,7 @@ func (self *Etcd) scan(node *etcd.Node, configHandler func(Config)) error {
         Path:   path,
         IsDir:  node.Dir,
         Value:  node.Value,
+        Source: EtcdConfigSource,
     }
 
     if config, err := syncConfig(configNode); err != nil {

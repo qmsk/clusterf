@@ -25,12 +25,18 @@ func (self ConfigService) Path() string {
 func (self ConfigService) Value() interface{} {
     return nil
 }
+func (self ConfigService) Source() ConfigSource {
+    return self.ConfigSource
+}
 
 func (self ConfigServiceFrontend) Path() string {
     return makePath("services", self.ServiceName, "frontend")
 }
 func (self ConfigServiceFrontend) Value() interface{} {
     return self.Frontend
+}
+func (self ConfigServiceFrontend) Source() ConfigSource {
+    return self.ConfigSource
 }
 
 func (self ConfigServiceBackend) Path() string {
@@ -39,10 +45,16 @@ func (self ConfigServiceBackend) Path() string {
 func (self ConfigServiceBackend) Value() interface{} {
     return self.Backend
 }
+func (self ConfigServiceBackend) Source() ConfigSource {
+    return self.ConfigSource
+}
 
 func (self ConfigRoute) Path() string {
     return makePath("routes", self.RouteName)
 }
 func (self ConfigRoute) Value() interface{} {
     return self.Route
+}
+func (self ConfigRoute) Source() ConfigSource {
+    return self.ConfigSource
 }
