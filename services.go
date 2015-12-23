@@ -135,7 +135,7 @@ func (self *Services) config(action config.Action, baseConfig config.Config) {
                 self.configRoute(route, action, applyConfig)
             }
         } else {
-            route := self.routes.get(applyConfig.RouteName)
+            route := self.routes.get(applyConfig.RouteName, applyConfig.ConfigSource)
 
             self.configRoute(route, action, applyConfig)
         }

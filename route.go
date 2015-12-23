@@ -13,12 +13,13 @@ func makeRoutes() Routes {
     return Routes(make(map[string]*Route))
 }
 
-func (self Routes) get(name string) *Route {
+func (self Routes) get(name string, configSource config.ConfigSource) *Route {
     if route, exists := self[name]; exists {
         return route
     } else {
         route := &Route{
             Name: name,
+            ConfigSource: configSource,
         }
         self[name] = route
 
@@ -58,6 +59,8 @@ type Route struct {
     Gateway4        net.IP
     ipvs_fwdMethod  *ipvs.FwdMethod
     ipvs_filter     bool
+
+    ConfigSource    config.ConfigSource
 }
 
 func (self *Route) config(action config.Action, routeConfig config.Route) error {
