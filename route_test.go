@@ -27,7 +27,7 @@ func TestNewConfigRoute(t *testing.T) {
     }
 
     // second round of configs from a different sources
-    services.NewConfig(&config.ConfigRoute{RouteName:""})
+    services.NewConfig(&config.ConfigRoute{RouteName:"", ConfigSource: "test"})
     route2 := services.routes["test"]
 
     if route2 == nil {

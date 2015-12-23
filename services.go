@@ -132,7 +132,12 @@ func (self *Services) config(action config.Action, baseConfig config.Config) {
         if applyConfig.RouteName == "" {
             // all routes
             for _, route := range self.routes {
-                self.configRoute(route, action, applyConfig)
+                if route.ConfigSource == applyConfig.ConfigSource {
+                    self.configRoute(route, action, applyConfig)
+                } else {
+                    log.Printf("clusterf:config skipping route %s in wildcard routes from %s config source\n",
+                               route.Name, applyConfig.ConfigSource)
+                }
             }
         } else {
             route := self.routes.get(applyConfig.RouteName, applyConfig.ConfigSource)
