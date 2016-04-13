@@ -10,27 +10,29 @@ import (
     "strings"
 )
 
-type FilesConfig struct {
+type FilesOptions struct {
     Path        string
 }
 
+func (options FilesOptions) Files() (*Files, error) {
+    files := Files{
+        options:   options,
+    }
+
+    return &files, nil
+}
+
 type Files struct {
-    config      FilesConfig
+    options FilesOptions
 }
 
 func (self *Files) String() string {
-    return fmt.Sprintf("%s", self.config.Path)
-}
-
-func (self FilesConfig) Open() (*Files, error) {
-    files := &Files{config: self}
-
-    return files, nil
+    return fmt.Sprintf("file://%s", self.options.Path)
 }
 
 // Recursively any Config's under given path
-func (self *Files) Scan() (configs []Config, err error) {
-    err = filepath.Walk(self.config.Path, func(path string, info os.FileInfo, err error) error {
+func (self *Files) Scan(config *Config) error {
+    return filepath.Walk(self.options.Path, func(path string, info os.FileInfo, err error) error {
         if err != nil {
             return err
         }
@@ -41,9 +43,9 @@ func (self *Files) Scan() (configs []Config, err error) {
         }
 
         node := Node{
-            Path:   strings.Trim(strings.TrimPrefix(path, self.config.Path), "/"),
+            Path:   strings.Trim(strings.TrimPrefix(path, self.options.Path), "/"),
             IsDir:  info.IsDir(),
-            Source: FileConfigSource,
+            Source: self,
         }
 
         if info.Mode().IsRegular() {
@@ -54,14 +56,6 @@ func (self *Files) Scan() (configs []Config, err error) {
             }
         }
 
-        if config, err := syncConfig(node); err != nil {
-            return err
-        } else if config != nil {
-            configs = append(configs, config)
-        }
-
-        return nil
+        return config.update(node)
     })
-
-    return
 }

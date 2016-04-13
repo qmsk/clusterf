@@ -1,3 +1,5 @@
+// +build etcd
+
 package config
 
 import (
@@ -18,7 +20,7 @@ type Etcd struct {
     client      *etcd.Client
 
     syncIndex   uint64
-    watchChan   chan Event
+    watchChan   chan Config
 }
 
 func (self *Etcd) String() string {
