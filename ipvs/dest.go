@@ -38,6 +38,17 @@ func ParseFwdMethod(value string) (FwdMethod, error) {
     }
 }
 
+// github.com/jessevdk/go-flags:Unmarshaler
+func (fwdMethod *FwdMethod) UnmarshalFlag(value string) error {
+	if parsed, err := ParseFwdMethod(value); err != nil {
+		return err
+	} else {
+		*fwdMethod = parsed
+
+		return nil
+	}
+}
+
 type Dest struct {
     // id
     // TODO: IPVS_DEST_ATTR_ADDR_FAMILY
