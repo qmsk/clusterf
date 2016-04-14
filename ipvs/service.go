@@ -64,6 +64,54 @@ func (self Service) String() string {
     }
 }
 
+func (service Service) Match(other Service) bool {
+	if service.Af != other.Af {
+		return false
+	}
+
+	if service.Protocol != other.Protocol {
+		return false
+	}
+
+	if service.Addr.String() != other.Addr.String() {
+		return false
+	}
+
+	if service.Port != other.Port {
+		return false
+	}
+
+	if service.FwMark != other.FwMark {
+		return false
+	}
+
+	return true
+}
+
+func (service Service) Equals(other Service) bool {
+	if !service.Match(other) {
+		return false
+	}
+
+	if service.SchedName != other.SchedName {
+		return false
+	}
+
+	if service.Flags != other.Flags {
+		return false
+	}
+
+	if service.Timeout != other.Timeout {
+		return false
+	}
+
+	if service.Netmask != other.Netmask {
+		return false
+	}
+
+	return true
+}
+
 func unpackService(attrs nlgo.AttrMap) (Service, error) {
     var service Service
 

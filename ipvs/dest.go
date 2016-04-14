@@ -72,6 +72,38 @@ func (self Dest) String() string {
     return fmt.Sprintf("%s:%d", self.Addr, self.Port)
 }
 
+func (dest Dest) Match(other Dest) bool {
+	if dest.Addr.String() != other.Addr.String() {
+		return false
+	}
+
+	if dest.Port != other.Port {
+		return false
+	}
+
+	return true
+}
+
+func (dest Dest) Equals(other Dest) bool {
+	if dest.FwdMethod != other.FwdMethod {
+		return false
+	}
+
+	if dest.Weight != other.Weight {
+		return false
+	}
+
+	if dest.UThresh != other.UThresh {
+		return false
+	}
+
+	if dest.LThresh != other.LThresh {
+		return false
+	}
+
+	return true
+}
+
 func unpackDest(service Service, attrs nlgo.AttrMap) (Dest, error) {
     var dest Dest
     var addr []byte
