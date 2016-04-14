@@ -10,8 +10,10 @@ import (
 )
 
 var Options struct {
-	Listen	bool	`long:"listen" help:"Listen for updates"`
-	JSON	bool	`long:"json" help:"Output JSON"`
+	Listen			bool	`long:"listen" help:"Listen for updates"`
+	JSON			bool	`long:"json" help:"Output JSON"`
+
+	ConfigReader	config.ReaderOptions	`group:"Config Reader"`
 }
 
 var flagsParser = flags.NewParser(&Options,  flags.Default)
@@ -41,12 +43,13 @@ func outputConfig (config config.Config) {
 }
 
 func main() {
-	var configReader config.Reader
-
-	if args, err := flagsParser.Parse(); err != nil {
+	if _, err := flagsParser.Parse(); err != nil {
 		log.Fatalf("flags.Parser.Parse: %v\n", err)
-	} else if err := configReader.Open(args...); err != nil {
-		log.Fatalf("config.Reader: Open: %v\n", err)
+	}
+
+	configReader, err := Options.ConfigReader.Reader()
+	if err != nil {
+		log.Fatalf("config.Reader: %v\n", err)
 	}
 
 	if Options.Listen {

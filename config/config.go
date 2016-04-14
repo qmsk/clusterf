@@ -5,6 +5,14 @@ import (
     "strings"
 )
 
+// A single Config may contain Nodes from different Sources
+// TODO: tag each Config object with a Node/Source, such that
+//		 sources override, and recursive updates are scoped to that source only
+type Source interface {
+    // uniquely identifying
+    String()    string
+}
+
 /* Config objects */
 
 type ServiceFrontend struct {

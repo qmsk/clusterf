@@ -6,12 +6,29 @@ import (
 	"net/url"
 )
 
-/*
- * Configuration sources: where the config is coming from
- */
-type Source interface {
-    // uniquely identifying
-    String()    string
+type ReaderOptions struct {
+	SourceURL	[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+}
+
+// Return a new Reader with the given config URLs opened
+func (options ReaderOptions) Reader() (*Reader, error) {
+	reader := Reader{
+
+	}
+
+	if err := reader.Open(options.SourceURL...); err != nil {
+		return nil, err
+	}
+
+	return &reader, nil
+}
+
+// Read and combine a Config from multiple Sources
+type Reader struct {
+	config		Config
+
+	syncChan	chan Node
+	listenChan	chan Config
 }
 
 type scanSource interface {
@@ -22,14 +39,6 @@ type scanSource interface {
 
 type syncSource interface {
 	Sync(chan Node) error
-}
-
-// Read and combine a Config from multiple Sources
-type Reader struct {
-	config		Config
-
-	syncChan	chan Node
-	listenChan	chan Config
 }
 
 func (reader *Reader) open(source Source) error {
