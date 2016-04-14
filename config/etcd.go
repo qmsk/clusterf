@@ -1,53 +1,99 @@
-// +build etcd
-
 package config
 
 import (
-    "github.com/coreos/go-etcd/etcd"
-    etcdError "github.com/coreos/etcd/error"
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
     "fmt"
     "log"
     "strings"
+	"net/url"
 )
 
-type EtcdConfig struct {
-    Machines    string
+func openEtcdSource(url *url.URL) (*EtcdSource, error) {
+	etcdOptions := EtcdOptions{
+		Hosts:	strings.Split(url.Host, ","),
+		Prefix:	url.Path,
+	}
+
+	switch url.Scheme {
+	case "etcd", "etcd+http":
+		etcdOptions.Scheme = "http"
+	case "etcd+https":
+		etcdOptions.Scheme = "https"
+	}
+
+	return etcdOptions.Open()
+}
+
+
+type EtcdOptions struct {
+	Scheme		string
+    Hosts		[]string
     Prefix      string
 }
 
-type Etcd struct {
-    config      EtcdConfig
-    client      *etcd.Client
+func (options EtcdOptions) String() string {
+	return fmt.Sprintf("etcd+%s://%s%s", options.Scheme, strings.Join(options.Hosts, ","), options.Prefix)
+}
 
+func (options EtcdOptions) clientConfig() (clientConfig client.Config, err error) {
+	for _, host := range options.Hosts {
+		endpointURL := url.URL{Scheme: options.Scheme, Host: host}
+
+		clientConfig.Endpoints = append(clientConfig.Endpoints, endpointURL.String())
+	}
+
+	return
+}
+
+func (options EtcdOptions) Open() (*EtcdSource, error) {
+    etcdSource := EtcdSource{
+		options:	options,
+	}
+
+	if clientConfig, err := options.clientConfig(); err != nil {
+		return nil, err
+	} else if client, err := client.New(clientConfig); err != nil {
+		return nil, err
+	} else {
+		etcdSource.client = client
+	}
+
+	etcdSource.keysAPI = client.NewKeysAPI(etcdSource.client)
+
+    return &etcdSource, nil
+}
+
+type EtcdSource struct {
+    options		EtcdOptions
+
+    client      client.Client
+	keysAPI		client.KeysAPI
+
+	// state to track changes
     syncIndex   uint64
-    watchChan   chan Config
+
+    watchChan   chan Node
 }
 
-func (self *Etcd) String() string {
-    return fmt.Sprintf("%s%s", self.config.Machines, self.config.Prefix)
+func (etcd *EtcdSource) String() string {
+	return etcd.options.String()
 }
 
-/*
- * Open etcd session
- */
-func (self EtcdConfig) Open() (*Etcd, error) {
-    e := &Etcd{config: self}
-
-    machines := strings.Split(self.Machines, ",")
-
-    e.client = etcd.NewClient(machines)
-
-    return e, nil
+func (etcd *EtcdSource) path(parts ...string) string {
+    return strings.Join(append([]string{etcd.options.Prefix}, parts...), "/")
 }
 
 /*
- * Initialize state in etcd
+ * Initialize state in etcd.
+ *
+ * Creates the top-level config directory if it does not exist, and initialize to follow it
  */
-func (self *Etcd) Init() error {
-    if response, err := self.client.CreateDir(self.config.Prefix, 0); err != nil {
+func (etcd *EtcdSource) Init() error {
+	if response, err := etcd.keysAPI.Set(context.Background(), etcd.path(), "", &client.SetOptions{Dir: true}); err != nil {
         return err
     } else {
-        self.syncIndex = response.Node.CreatedIndex
+        etcd.syncIndex = response.Node.CreatedIndex
     }
 
     return nil
@@ -60,69 +106,65 @@ func (self *Etcd) Init() error {
  *
  * Stores the current etcd-index from the snapshot in .syncIndex, so that .Sync() can be used to continue updating any changes.
  */
-func (self *Etcd) Scan() ([]Config, error) {
-    response, err := self.client.Get(self.config.Prefix, false, /* recursive */ true)
+func (etcd *EtcdSource) Scan() ([]Node, error) {
+	response, err := etcd.keysAPI.Get(context.Background(), etcd.path(), &client.GetOptions{Recursive: true})
 
-    if err != nil {
-        if etcdErr, ok := err.(*etcd.EtcdError); ok {
-            if etcdErr.ErrorCode == etcdError.EcodeKeyNotFound {
-                // create directory instead
-                return nil, self.Init()
-            }
-        }
+    if err == nil {
 
+	} else if clientError, ok := err.(client.Error); ok && clientError.Code == client.ErrorCodeKeyNotFound {
+		// create directory instead
+		return nil, etcd.Init()
+	} else {
         return nil, err
     }
 
     if response.Node.Dir != true {
-        return nil, fmt.Errorf("--etcd-prefix=%s is not a directory", response.Node.Key)
+        return nil, fmt.Errorf("etcd prefix=%s is not a directory", response.Node.Key)
     }
 
     // the tree root's ModifiedTime may be a long long time in the past, so we can't want to use that for waits
     // we assume this enough to ensure atomic sync with .Watch() on the same tree..
-    self.syncIndex = response.EtcdIndex
+    etcd.syncIndex = response.Index
 
     // scan, collect and return
-    var configs []Config
-    err = self.scan(response.Node, func (config Config) {
-        configs = append(configs, config)
-    })
-    return configs, err
+	var nodes []Node
+
+	err = etcd.scanNode(response.Node, func(node Node) { nodes = append(nodes, node) })
+
+	return nodes, err
 }
 
-// Scan through the recursive /clusterf node to return ConfigItem's
-func (self *Etcd) scan(node *etcd.Node, configHandler func(Config)) error {
+func (etcd *EtcdSource) parseNode(etcdNode *client.Node) (node Node, err error) {
     // decode etcd path into config tree path
-    path := node.Key
+    path := etcdNode.Key
 
-    if !strings.HasPrefix(node.Key, self.config.Prefix) {
-        return fmt.Errorf("node outside tree: %s", node.Key)
+    if !strings.HasPrefix(path, etcd.options.Prefix) {
+        return node, fmt.Errorf("node outside tree: %s", path)
     }
 
-    path = strings.TrimPrefix(path, self.config.Prefix)
+    path = strings.TrimPrefix(path, etcd.options.Prefix)
     path = strings.Trim(path, "/")
 
-    // match
-    configNode := Node{
-        Path:   path,
-        IsDir:  node.Dir,
-        Value:  node.Value,
-        Source: EtcdConfigSource,
-    }
+	node.Source = etcd
+	node.Path = path
+	node.IsDir = etcdNode.Dir
+	node.Value = etcdNode.Value
 
-    if config, err := syncConfig(configNode); err != nil {
-        log.Printf("config:etcd.scan %s: %v\n", node.Key, err)
-    } else if config == nil {
+	return
+}
 
-    } else {
-        log.Printf("config:etcd.scan %s: %#v\n", node.Key, config)
-
-        configHandler(config)
-    }
+// Scan through the recursive /clusterf node to return Nodes in pre-order (top-level nodes before their children)
+func (etcd *EtcdSource) scanNode(etcdNode *client.Node, handler func(node Node)) error {
+	if node, err := etcd.parseNode(etcdNode); err != nil {
+		return err
+	} else {
+		// pre-order
+		handler(node)
+	}
 
     // recurse
-    for _, childNode := range node.Nodes {
-        if err := self.scan(childNode, configHandler); err != nil {
+    for _, childNode := range etcdNode.Nodes {
+        if err := etcd.scanNode(childNode, handler); err != nil {
             return err
         }
     }
@@ -131,105 +173,70 @@ func (self *Etcd) scan(node *etcd.Node, configHandler func(Config)) error {
 }
 
 /*
- * Watch for changes in etcd
+ * Watch for changed Nodes in etcd.
  *
- * Sends any changes on the returned channel.
+ * Sends any changes on the returned channel. Shared amongst all listeners.
  */
-func (self *Etcd) Sync() chan Event {
-    if self.watchChan == nil {
+func (etcd *EtcdSource) Sync() chan Node {
+    if etcd.watchChan == nil {
         // kick off new goroutine to handle initial services and updates
-        self.watchChan = make(chan Event)
+        etcd.watchChan = make(chan Node)
 
-        go self.watch()
+        go etcd.watch()
     }
 
-    return self.watchChan
+    return etcd.watchChan
 }
 
 // Watch etcd for changes, and sync them
-func (self *Etcd) watch() {
-    defer close(self.watchChan)
+func (etcd *EtcdSource) watch() {
+    defer close(etcd.watchChan)
+
+	watcher := etcd.keysAPI.Watcher(etcd.path(), &client.WatcherOptions{AfterIndex: etcd.syncIndex, Recursive: true})
 
     for {
-        response, err := self.client.Watch(self.config.Prefix, self.syncIndex + 1, true, nil, nil)
-        if err != nil {
-            log.Printf("config:etcd.watch %s @ %d: %s\n", self.config.Prefix, self.syncIndex + 1, err)
-            break
-        } else {
-            self.syncIndex = response.Node.ModifiedIndex
-        }
-
-        if response.PrevNode != nil {
-            log.Printf("config:etcd.watch: %s %+v <- %+v\n", response.Action, response.Node, response.PrevNode)
-        } else {
-            log.Printf("config:etcd.watch: %s %+v\n", response.Action, response.Node)
-        }
-
-        // sync to update services state and generate watchEvent()'s
-        if event, err := self.sync(response.Action, response.Node); err != nil {
-            log.Printf("config:etcd.sync: %s\n", err)
-            continue
-        } else if event != nil {
-            self.watchChan <- *event
+		if response, err := watcher.Next(context.Background()); err != nil {
+            log.Printf("config:EtcdSource.watch: %s\n", err)
+			return
+		} else if node, err := etcd.syncNode(response.Action, response.Node); err != nil {
+			log.Printf("config:EtcdSource.watch %#v: syncNode: %s\n", response, err)
+			return
+		} else {
+            log.Printf("config:EtcdSource.watch: %v\n", node)
+            etcd.watchChan <- node
         }
     }
 }
 
 // Handle changed node
-func (self *Etcd) sync(action string, node *etcd.Node) (*Event, error) {
-    // decode action
-    eventAction := func()Action{ switch action {
-    case "create", "set":
-        return SetConfig
+func (etcd *EtcdSource) syncNode(etcdAction string, etcdNode *client.Node) (Node, error) {
+	node, err := etcd.parseNode(etcdNode)
+	if err != nil {
+		return node, err
+	}
 
-    case "delete", "expire":
-        return DelConfig
+    // decode action
+    switch etcdAction {
+    case "create", "set", "update", "compareAndSwap":
+
+    case "delete", "expire", "compareAndDelete":
+		node.Remove = true
 
     default:
-        panic(fmt.Errorf("Unknown etcd action: %s", action))
+		return node, fmt.Errorf("Unknown etcd action: %s", etcdAction)
+	}
 
-    } }()
-
-
-    // decode etcd path into config tree path
-    path := node.Key
-
-    if strings.HasPrefix(path, self.config.Prefix) {
-        path = strings.TrimPrefix(path, self.config.Prefix)
-    } else {
-        return nil, fmt.Errorf("path outside tree: %s", path)
-    }
-    path = strings.Trim(path, "/")
-
-    // match
-    eventNode := Node{
-        Path:   path,
-        IsDir:  node.Dir,
-        Value:  node.Value,
-    }
-
-    if event, err := syncEvent(eventAction, eventNode); err != nil {
-        log.Printf("config:Etcd.sync %s %s: %v\n", action, node.Key, err)
-        return nil, err
-    } else if event == nil {
-        return nil, nil
-    } else {
-        log.Printf("config:Etcd.sync %s %s: %#v\n", action, node.Key, event)
-        return event, err
-    }
+	return node, nil
 }
 
-func (self *Etcd) path(parts ...string) string {
-    return strings.Join(append([]string{self.config.Prefix}, parts...), "/")
-}
-
+/*
 // Publish a config into etcd
-func (self *Etcd) Publish(config Config) error {
+func (etcd *EtcdSource) Publish(config Config) error {
     var ttl uint64 = 0
 
     if node, err := makeNode(config); err != nil {
         return err
-    } else if _, err := self.client.Set(self.path(node.Path), node.Value, ttl); err != nil {
+    } else if _, err := etcd.client.Set(etcd.path(node.Path), node.Value, ttl); err != nil {
         return err
     } else {
         return nil
@@ -237,10 +244,11 @@ func (self *Etcd) Publish(config Config) error {
 }
 
 // Retract a config from etcd
-func (self *Etcd) Retract(config Config) error {
-    if _, err := self.client.Delete(self.path(config.Path()), false); err != nil {
+func (etcd *EtcdSource) Retract(config Config) error {
+    if _, err := etcd.client.Delete(etcd.path(config.Path()), false); err != nil {
         return err
     } else {
         return nil
     }
 }
+*/

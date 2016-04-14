@@ -8,7 +8,16 @@ import (
     "io/ioutil"
     "os"
     "strings"
+	"net/url"
 )
+
+func openFileSource(url *url.URL) (*FileSource, error) {
+	fileOptions := FileOptions{
+		Path:	url.Path,
+	}
+
+	return fileOptions.Open()
+}
 
 type FileOptions struct {
     Path        string
@@ -31,8 +40,8 @@ func (fs *FileSource) String() string {
 }
 
 // Recursively any Config's under given path
-func (fs *FileSource) Scan(config *Config) error {
-    return filepath.Walk(fs.options.Path, func(path string, info os.FileInfo, err error) error {
+func (fs *FileSource) Scan() (nodes []Node, err error) {
+    err = filepath.Walk(fs.options.Path, func(path string, info os.FileInfo, err error) error {
         if err != nil {
             return err
         }
@@ -56,6 +65,10 @@ func (fs *FileSource) Scan(config *Config) error {
             }
         }
 
-        return config.update(node)
+		nodes = append(nodes, node)
+
+		return nil
     })
+
+	return
 }

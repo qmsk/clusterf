@@ -16,7 +16,7 @@ type Source interface {
 type readerSource interface {
 	Source
 
-	Scan(config *Config) error
+	Scan() ([]Node, error)
 }
 
 // Read and combine a Config from multiple Sources
@@ -25,21 +25,35 @@ type Reader struct {
 }
 
 func (reader *Reader) open(readerSource readerSource) error {
-	return readerSource.Scan(&reader.config)
+	if nodes, err := readerSource.Scan(); err != nil {
+		return err
+	} else {
+		for _, node := range nodes {
+			if err := reader.config.update(node); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 }
 
 func (reader *Reader) openURL(url *url.URL) error {
 	switch url.Scheme {
-	case "file":
-		fileOptions := FileOptions{
-			Path:	url.Path,
-		}
-
-		if readerSource, err := fileOptions.Open(); err != nil {
+	case "etcd", "etcd+http", "etcd+https":
+		if readerSource, err := openEtcdSource(url); err != nil {
 			return err
 		} else {
 			return reader.open(readerSource)
 		}
+
+	case "file":
+		if readerSource, err := openFileSource(url); err != nil {
+			return err
+		} else {
+			return reader.open(readerSource)
+		}
+
 	default:
 		return fmt.Errorf("Invalid config URL Scheme=%v: %v\n", url.Scheme, url)
 	}
