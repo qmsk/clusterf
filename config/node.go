@@ -10,7 +10,7 @@ type Node struct {
     /* Identity */
     Source  Source
 
-    // clusterf-relative path, so with any prefix stripped
+    // clusterf-relative path, so with any prefix and leading / stripped
     Path    string
 
     /* Type/Value */

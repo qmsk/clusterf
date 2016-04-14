@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 )
 
 type ReaderOptions struct {
-	SourceURL	[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceURL		[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+
+	FilterRoutes	string		`long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
 }
 
 // Return a new Reader with the given config URLs opened
 func (options ReaderOptions) Reader() (*Reader, error) {
 	reader := Reader{
-
+		options:		options,
 	}
 
 	if err := reader.Open(options.SourceURL...); err != nil {
@@ -25,6 +28,7 @@ func (options ReaderOptions) Reader() (*Reader, error) {
 
 // Read and combine a Config from multiple Sources
 type Reader struct {
+	options		ReaderOptions
 	config		Config
 
 	syncChan	chan Node
@@ -41,6 +45,15 @@ type syncSource interface {
 	Sync(chan Node) error
 }
 
+func (reader *Reader) update(node Node) error {
+	if reader.options.FilterRoutes != "" && strings.HasPrefix(node.Path, "routes/") && !strings.HasPrefix(node.Source.String(), reader.options.FilterRoutes) {
+		log.Printf("Filter out route: %v", node.Path)
+		return nil
+	}
+
+	return reader.config.update(node)
+}
+
 func (reader *Reader) open(source Source) error {
 	if scanSource, ok := source.(scanSource); !ok {
 
@@ -48,7 +61,7 @@ func (reader *Reader) open(source Source) error {
 		return err
 	} else {
 		for _, node := range nodes {
-			if err := reader.config.update(node); err != nil {
+			if err := reader.update(node); err != nil {
 				return err
 			}
 		}
@@ -130,7 +143,7 @@ func (reader *Reader) listen() {
 
 	// apply sync updates
 	for node := range reader.syncChan {
-		if err := reader.config.update(node); err != nil {
+		if err := reader.update(node); err != nil {
 			log.Printf("config:Reader.listener: Config.update %#v: %v\n", node, err)
 			return
 		}
