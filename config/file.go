@@ -10,29 +10,29 @@ import (
     "strings"
 )
 
-type FilesOptions struct {
+type FileOptions struct {
     Path        string
 }
 
-func (options FilesOptions) Files() (*Files, error) {
-    files := Files{
+func (options FileOptions) Open() (*FileSource, error) {
+    fileSource := FileSource{
         options:   options,
     }
 
-    return &files, nil
+    return &fileSource, nil
 }
 
-type Files struct {
-    options FilesOptions
+type FileSource struct {
+    options FileOptions
 }
 
-func (self *Files) String() string {
-    return fmt.Sprintf("file://%s", self.options.Path)
+func (fs *FileSource) String() string {
+    return fmt.Sprintf("file://%s", fs.options.Path)
 }
 
 // Recursively any Config's under given path
-func (self *Files) Scan(config *Config) error {
-    return filepath.Walk(self.options.Path, func(path string, info os.FileInfo, err error) error {
+func (fs *FileSource) Scan(config *Config) error {
+    return filepath.Walk(fs.options.Path, func(path string, info os.FileInfo, err error) error {
         if err != nil {
             return err
         }
@@ -43,9 +43,9 @@ func (self *Files) Scan(config *Config) error {
         }
 
         node := Node{
-            Path:   strings.Trim(strings.TrimPrefix(path, self.options.Path), "/"),
+            Path:   strings.Trim(strings.TrimPrefix(path, fs.options.Path), "/"),
             IsDir:  info.IsDir(),
-            Source: self,
+            Source: fs,
         }
 
         if info.Mode().IsRegular() {

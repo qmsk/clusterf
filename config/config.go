@@ -5,14 +5,6 @@ import (
     "strings"
 )
 
-/*
- * Configuration sources: where the config is coming from
- */
-type ConfigSource interface {
-    // uniquely identifying
-    String()    string
-}
-
 /* Config objects */
 
 type ServiceFrontend struct {

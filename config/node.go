@@ -8,7 +8,7 @@ import (
 // Low-level config model, used to load files from local and etcd
 type Node struct {
     /* Identity */
-    Source  ConfigSource
+    Source  Source
 
     // clusterf-relative path, so with any prefix stripped
     Path    string
