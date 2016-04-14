@@ -70,10 +70,8 @@ type EtcdSource struct {
     client      client.Client
 	keysAPI		client.KeysAPI
 
-	// state to track changes
+	// state to track changes from Scan() to Sync()
     syncIndex   uint64
-
-    watchChan   chan Node
 }
 
 func (etcd *EtcdSource) String() string {
@@ -177,20 +175,16 @@ func (etcd *EtcdSource) scanNode(etcdNode *client.Node, handler func(node Node))
  *
  * Sends any changes on the returned channel. Shared amongst all listeners.
  */
-func (etcd *EtcdSource) Sync() chan Node {
-    if etcd.watchChan == nil {
-        // kick off new goroutine to handle initial services and updates
-        etcd.watchChan = make(chan Node)
+func (etcd *EtcdSource) Sync(syncChan chan Node) error {
+	// kick off new goroutine to handle initial services and updates
+	go etcd.watch(syncChan)
 
-        go etcd.watch()
-    }
-
-    return etcd.watchChan
+	return nil
 }
 
-// Watch etcd for changes, and sync them
-func (etcd *EtcdSource) watch() {
-    defer close(etcd.watchChan)
+// Watch etcd for changes, and sync them over the chan
+func (etcd *EtcdSource) watch(watchChan chan Node) {
+    defer close(watchChan)
 
 	watcher := etcd.keysAPI.Watcher(etcd.path(), &client.WatcherOptions{AfterIndex: etcd.syncIndex, Recursive: true})
 
@@ -203,7 +197,7 @@ func (etcd *EtcdSource) watch() {
 			return
 		} else {
             log.Printf("config:EtcdSource.watch: %v\n", node)
-            etcd.watchChan <- node
+            watchChan <- node
         }
     }
 }
