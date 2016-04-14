@@ -1,15 +1,37 @@
 package clusterf
 
 import (
+    "github.com/qmsk/clusterf/config"
     "fmt"
     "github.com/qmsk/clusterf/ipvs"
     "log"
     "syscall"
 )
 
-const IPVS_FWD_METHOD = ipvs.IP_VS_CONN_F_MASQ
-const IPVS_SCHED_NAME = "wlc"
+type IPVSOptions struct {
+	FilterRoutes	string					`long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
 
+	Debug			bool		`long:"ipvs-debug"`
+	Reset			bool		`long:"ipvs-reset" help:"Flush all IPVS services before applying configuration"`
+	Print			bool		`long:"ipvs-print"`
+
+	FwdMethod		ipvs.FwdMethod	`long:"ipvs-fwd-method" default:"masq"`
+	SchedName		string			`long:"ipvs-sched-name" default:"wlc"`
+
+    mock			bool        // used for testing; do not actually setup the ipvsClient
+}
+
+func (options IPVSOptions) Open() (*IPVSDriver, error) {
+	var driver IPVSDriver
+
+	if err := driver.init(options); err != nil {
+		return nil, err
+	}
+
+	return &driver, nil
+}
+
+// Used to expand ServiceFrontend/Backend -> multiple ipvs.service/Dest
 type ipvsType struct {
     Af          ipvs.Af
     Protocol    ipvs.Protocol
@@ -22,237 +44,207 @@ var ipvsTypes = []ipvsType {
     { syscall.AF_INET6,     syscall.IPPROTO_UDP },
 }
 
-type ipvsKey struct {
-    Service     string
-    Dest        string
-}
-
-type IpvsConfig struct {
-    Debug       bool
-    FwdMethod   string
-    SchedName   string
-    mock        bool        // used for testing; do not actually setup the ipvsClient
-}
-
+// Running state
 type IPVSDriver struct {
+	options		IPVSOptions
     ipvsClient *ipvs.Client
 
-    // global state
-    routes      Routes
-
-    // deduplicate overlapping destinations
-    dests       map[ipvsKey]*ipvs.Dest
-
-    // global defaults
-    fwdMethod   ipvs.FwdMethod
-    schedName   string
+	// running state
+	routes		Routes
+	services	Services
 }
 
-func (self IpvsConfig) setup(routes Routes) (*IPVSDriver, error) {
-    driver := &IPVSDriver{
-        routes: routes,
-        dests:  make(map[ipvsKey]*ipvs.Dest),
-    }
+func (driver *IPVSDriver) init(options IPVSOptions) error {
+	driver.options = options
 
-    if self.FwdMethod == "" {
-        driver.fwdMethod = IPVS_FWD_METHOD
-    } else if fwdMethod, err := ipvs.ParseFwdMethod(self.FwdMethod); err != nil {
-        return nil, err
-    } else {
-        driver.fwdMethod = fwdMethod
-    }
-
-    if self.SchedName == "" {
-        driver.schedName = IPVS_SCHED_NAME
-    } else {
-        driver.schedName = self.SchedName
-    }
-
-    // IPVS
-    if self.mock {
+    if options.mock {
 
     } else if ipvsClient, err := ipvs.Open(); err != nil {
-        return nil, err
+        return err
     } else {
-        log.Printf("ipvs.Open: %+v\n", ipvsClient)
-
         driver.ipvsClient = ipvsClient
-    }
 
-    if driver.ipvsClient != nil && self.Debug {
-        driver.ipvsClient.SetDebug()
+		if options.Debug {
+			driver.ipvsClient.SetDebug()
+		}
     }
 
     if driver.ipvsClient == nil {
         // mock'd
     } else if info, err := driver.ipvsClient.GetInfo(); err != nil {
-        return nil, err
+        return err
     } else {
         log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
     }
 
-    return driver, nil
-}
+	if options.Reset {
+		if err := driver.reset(); err != nil {
+			return err
+		}
+	} else {
+		if err := driver.sync(); err != nil {
+			return err
+		}
+	}
 
-// Begin initial config sync by flushing the system state
-func (self *IPVSDriver) sync() error {
-    if self.ipvsClient == nil {
-
-    } else if err := self.ipvsClient.Flush(); err != nil {
-        return err
-    } else {
-        log.Printf("ipvs.Flush")
-    }
-
-    return nil
-}
-
-func (self *IPVSDriver) newFrontend() *ipvsFrontend {
-    return makeFrontend(self)
-}
-
-func (self *IPVSDriver) upService(ipvsService *ipvs.Service) error {
-    if self.ipvsClient == nil {
-
-    } else if err := self.ipvsClient.NewService(*ipvsService); err != nil  {
-        return err
-    }
+	if options.Print {
+		driver.Print()
+	}
 
     return nil
 }
 
-// bring up a service-dest with given weight, mergeing if necessary
-func (self *IPVSDriver) upDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, weight uint32) (*ipvs.Dest, error) {
-    ipvsKey := ipvsKey{ipvsService.String(), ipvsDest.String()}
+// Reset running state in kernel
+func (driver *IPVSDriver) reset() error {
+	if err := driver.ipvsClient.Flush(); err != nil {
+		return err
+	}
 
-    if mergeDest, mergeExists := self.dests[ipvsKey]; !mergeExists {
-        ipvsDest.Weight = weight
-
-        log.Printf("clusterf:ipvs upDest: new %v %v\n", ipvsService, ipvsDest)
-
-        if self.ipvsClient == nil {
-        } else if err := self.ipvsClient.NewDest(*ipvsService, *ipvsDest); err != nil {
-            return ipvsDest, err
-        }
-
-        self.dests[ipvsKey] = ipvsDest
-
-        return ipvsDest, nil
-
-    } else {
-        log.Printf("clusterf:ipvs upDest: merge %v %v +%d\n", ipvsService, mergeDest, weight)
-
-        mergeDest.Weight += weight
-
-        if self.ipvsClient == nil {
-
-        } else if err := self.ipvsClient.SetDest(*ipvsService, *mergeDest); err != nil {
-            return mergeDest, err
-        }
-
-        return mergeDest, nil
-    }
+	return nil
 }
 
-// update an existing dest with a new weight
-func (self *IPVSDriver) adjustDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, weightDelta int) error {
-    ipvsKey := ipvsKey{ipvsService.String(), ipvsDest.String()}
+// Sync running state from kernel
+func (driver *IPVSDriver) sync() error {
+	services := make(Services)
 
-    if mergeDest := self.dests[ipvsKey]; mergeDest != ipvsDest {
-        panic(fmt.Errorf("invalid dest %#v should be %#v", ipvsDest, mergeDest))
-    }
+	if driver.ipvsClient == nil {
+		return fmt.Errorf("Cannot sync against a mock'd ipvs.Client")
+	} else if ipvsServices, err := driver.ipvsClient.ListServices(); err != nil {
+		return fmt.Errorf("ipvs.ListServices: %v\n", err)
+	} else {
+		for _, ipvsService := range ipvsServices {
+			if dests, err := driver.ipvsClient.ListDests(ipvsService); err != nil {
+				return fmt.Errorf("ipvs.ListDests %v: %v\n", ipvsService, err)
+			} else {
+				services.sync(ipvsService, dests)
+			}
+		}
+	}
 
-    ipvsDest.Weight = uint32(int(ipvsDest.Weight) + weightDelta)
+	driver.services = services
 
-    // reconfigure active in-place
-    if self.ipvsClient == nil {
-
-    } else if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil  {
-        return err
-    }
-
-    return nil
+	return nil
 }
 
-// bring down a service-dest with given weight, merging if necessary
-func (self *IPVSDriver) downDest(ipvsService *ipvs.Service, ipvsDest *ipvs.Dest, weight uint32) error {
-    ipvsKey := ipvsKey{ipvsService.String(), ipvsDest.String()}
-
-    if mergeDest := self.dests[ipvsKey]; mergeDest != ipvsDest {
-        panic(fmt.Errorf("invalid dest %#v should be %#v", ipvsDest, mergeDest))
-    }
-
-    if ipvsDest.Weight > weight {
-        log.Printf("clusterf:ipvs downDest: merge %v %v -%d\n", ipvsService, ipvsDest, weight)
-
-        ipvsDest.Weight -= weight
-
-        if self.ipvsClient == nil {
-
-        } else if err := self.ipvsClient.SetDest(*ipvsService, *ipvsDest); err != nil {
-            return err
-        }
-
-    } else if ipvsDest.Weight < weight {
-        panic(fmt.Errorf("invalid weight %d for dest %#v", weight, ipvsDest))
-
-    } else {
-        log.Printf("clusterf:ipvs downdest: del %v %v\n", ipvsService, ipvsDest)
-
-        if self.ipvsClient == nil {
-
-        } else if err := self.ipvsClient.DelDest(*ipvsService, *ipvsDest); err != nil  {
-            return err
-        }
-
-        delete(self.dests, ipvsKey)
-    }
-
-    return nil
+func (driver *IPVSDriver) newService(service Service) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.NewService(service.Service)
+	}
 }
 
-func (self *IPVSDriver) downService(ipvsService *ipvs.Service) error {
-    if self.ipvsClient == nil {
-
-    } else if err := self.ipvsClient.DelService(*ipvsService); err != nil {
-        return err
-    }
-
-    // flush any dests, since the kernel will also clear them out
-    for ipvsKey, _ := range self.dests {
-        if ipvsService.String() == ipvsKey.Service {
-            delete(self.dests, ipvsKey)
-        }
-    }
-
-    return nil
+func (driver *IPVSDriver) setService(service Service) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.SetService(service.Service)
+	}
 }
 
-func (self *IPVSDriver) Print() {
-    if self.ipvsClient == nil {
-        fmt.Printf("Mock'd\n")
-    } else if services, err := self.ipvsClient.ListServices(); err != nil {
-        log.Fatalf("ipvs.ListServices: %v\n", err)
-    } else {
-        fmt.Printf("Proto                           Addr:Port\n")
-        for _, service := range services {
-            fmt.Printf("%-5v %30s:%-5d %s\n",
-                service.Protocol,
-                service.Addr, service.Port,
-                service.SchedName,
-            )
+func (driver *IPVSDriver) delService(service Service) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.DelService(service.Service)
+	}
+}
 
-            if dests, err := self.ipvsClient.ListDests(service); err != nil {
-                log.Fatalf("ipvs.ListDests: %v\n", err)
-            } else {
-                for _, dest := range dests {
-                    fmt.Printf("%5s %30s:%-5d %v\n",
-                        "",
-                        dest.Addr, dest.Port,
-                        dest.FwdMethod,
-                    )
-                }
-            }
-        }
-    }
+func (driver *IPVSDriver) newServiceDest(service Service, dest Dest) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.NewDest(service.Service, dest.Dest)
+	}
+}
+
+func (driver *IPVSDriver) setServiceDest(service Service, dest Dest) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.SetDest(service.Service, dest.Dest)
+	}
+}
+
+func (driver *IPVSDriver) delServiceDest(service Service, dest Dest) error {
+	if driver.ipvsClient == nil {
+		return nil
+	} else {
+		return driver.ipvsClient.DelDest(service.Service, dest.Dest)
+	}
+}
+
+// Apply new state
+func (driver *IPVSDriver) update(routes Routes, services Services) error {
+	for serviceName, service := range services {
+		oldService, exists := driver.services[serviceName]
+
+		if !exists {
+			driver.newService(service)
+		} else {
+			driver.setService(service)
+		}
+
+		for destName, dest := range service.dests {
+			if _, exists := oldService.dests[destName]; !exists {
+				driver.newServiceDest(service, dest)
+			} else {
+				driver.setServiceDest(service, dest)
+			}
+		}
+
+		for destName, oldDest := range oldService.dests {
+			if _, exists := service.dests[destName]; !exists {
+				driver.delServiceDest(service, oldDest)
+			}
+		}
+	}
+
+	for serviceName, oldService := range driver.services {
+		if _, exists := services[serviceName]; !exists {
+			// removing a service also removes all service.dests
+			driver.delService(oldService)
+		}
+	}
+
+	driver.routes = routes
+	driver.services = services
+
+	return nil
+}
+
+// Update state from config
+func (driver *IPVSDriver) config(config config.Config) error {
+	// routes
+	routes, err := configRoutes(config.Routes)
+	if err != nil {
+		return err
+	}
+
+	// services
+	services, err := configServices(config.Services, routes, driver.options)
+	if err != nil {
+		return err
+	}
+
+	return driver.update(routes, services)
+}
+
+func (driver *IPVSDriver) Print() {
+	fmt.Printf("Proto                           Addr:Port\n")
+	for _, service := range driver.services {
+		fmt.Printf("%-5v %30s:%-5d %s\n",
+			service.Protocol,
+			service.Addr, service.Port,
+			service.SchedName,
+		)
+
+		for _, dest := range service.dests {
+			fmt.Printf("%5s %30s:%-5d %v\n",
+				"",
+				dest.Addr, dest.Port,
+				dest.FwdMethod,
+			)
+		}
+	}
 }
