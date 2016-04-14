@@ -9,16 +9,13 @@ import (
 )
 
 type IPVSOptions struct {
-	FilterRoutes	string					`long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
-
 	Debug			bool		`long:"ipvs-debug"`
-	Reset			bool		`long:"ipvs-reset" help:"Flush all IPVS services before applying configuration"`
-	Print			bool		`long:"ipvs-print"`
 
 	FwdMethod		ipvs.FwdMethod	`long:"ipvs-fwd-method" default:"masq"`
 	SchedName		string			`long:"ipvs-sched-name" default:"wlc"`
 
-    mock			bool        // used for testing; do not actually setup the ipvsClient
+	Mock			bool			`long:"ipvs-mock" default:"false" help:"Do not connect to the kernel IPVS state"`
+	Noop			bool			`long:"ipvs-noop" default:"false" help:"Do not write to the kernel IPVS state"`
 }
 
 func (options IPVSOptions) Open() (*IPVSDriver, error) {
@@ -47,7 +44,8 @@ var ipvsTypes = []ipvsType {
 // Running state
 type IPVSDriver struct {
 	options		IPVSOptions
-    ipvsClient *ipvs.Client
+    readClient	*ipvs.Client
+	writeClient	*ipvs.Client
 
 	// running state
 	routes		Routes
@@ -57,63 +55,60 @@ type IPVSDriver struct {
 func (driver *IPVSDriver) init(options IPVSOptions) error {
 	driver.options = options
 
-    if options.mock {
+    if options.Mock {
 
     } else if ipvsClient, err := ipvs.Open(); err != nil {
         return err
     } else {
-        driver.ipvsClient = ipvsClient
-
 		if options.Debug {
-			driver.ipvsClient.SetDebug()
+			ipvsClient.SetDebug()
 		}
+
+        driver.readClient = ipvsClient
     }
 
-    if driver.ipvsClient == nil {
+	if options.Noop {
+
+	} else {
+		driver.writeClient = driver.readClient
+	}
+
+
+    if driver.readClient == nil {
         // mock'd
-    } else if info, err := driver.ipvsClient.GetInfo(); err != nil {
+    } else if info, err := driver.readClient.GetInfo(); err != nil {
         return err
     } else {
         log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
     }
 
-	if options.Reset {
-		if err := driver.reset(); err != nil {
-			return err
-		}
-	} else {
-		if err := driver.sync(); err != nil {
-			return err
-		}
-	}
-
-	if options.Print {
-		driver.Print()
-	}
-
     return nil
 }
 
 // Reset running state in kernel
-func (driver *IPVSDriver) reset() error {
-	if err := driver.ipvsClient.Flush(); err != nil {
+func (driver *IPVSDriver) Reset() error {
+	if driver.writeClient == nil {
+
+	} else if err := driver.writeClient.Flush(); err != nil {
 		return err
 	}
+
+	driver.services = nil
 
 	return nil
 }
 
 // Sync running state from kernel
-func (driver *IPVSDriver) sync() error {
+func (driver *IPVSDriver) Sync() error {
 	services := make(Services)
 
-	if driver.ipvsClient == nil {
+	if driver.readClient == nil {
 		return fmt.Errorf("Cannot sync against a mock'd ipvs.Client")
-	} else if ipvsServices, err := driver.ipvsClient.ListServices(); err != nil {
+	} else if ipvsServices, err := driver.readClient.ListServices(); err != nil {
 		return fmt.Errorf("ipvs.ListServices: %v\n", err)
 	} else {
 		for _, ipvsService := range ipvsServices {
-			if dests, err := driver.ipvsClient.ListDests(ipvsService); err != nil {
+			if dests, err := driver.readClient.ListDests(ipvsService); err != nil {
 				return fmt.Errorf("ipvs.ListDests %v: %v\n", ipvsService, err)
 			} else {
 				services.sync(ipvsService, dests)
@@ -127,50 +122,62 @@ func (driver *IPVSDriver) sync() error {
 }
 
 func (driver *IPVSDriver) newService(service Service) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: New service %v\n", service)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.NewService(service.Service)
+		return driver.writeClient.NewService(service.Service)
 	}
 }
 
 func (driver *IPVSDriver) setService(service Service) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: Set service %v\n", service)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.SetService(service.Service)
+		return driver.writeClient.SetService(service.Service)
 	}
 }
 
 func (driver *IPVSDriver) delService(service Service) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: Delete service %v\n", service)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.DelService(service.Service)
+		return driver.writeClient.DelService(service.Service)
 	}
 }
 
 func (driver *IPVSDriver) newServiceDest(service Service, dest Dest) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: New service %v dest %v\n", service, dest)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.NewDest(service.Service, dest.Dest)
+		return driver.writeClient.NewDest(service.Service, dest.Dest)
 	}
 }
 
 func (driver *IPVSDriver) setServiceDest(service Service, dest Dest) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: Set service %v dest %v\n", service, dest)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.SetDest(service.Service, dest.Dest)
+		return driver.writeClient.SetDest(service.Service, dest.Dest)
 	}
 }
 
 func (driver *IPVSDriver) delServiceDest(service Service, dest Dest) error {
-	if driver.ipvsClient == nil {
+	log.Printf("IPVS: Delete service %v dest %v\n", service, dest)
+
+	if driver.writeClient == nil {
 		return nil
 	} else {
-		return driver.ipvsClient.DelDest(service.Service, dest.Dest)
+		return driver.writeClient.DelDest(service.Service, dest.Dest)
 	}
 }
 
@@ -181,14 +188,16 @@ func (driver *IPVSDriver) update(routes Routes, services Services) error {
 
 		if !exists {
 			driver.newService(service)
-		} else {
+		} else if !service.Equals(oldService.Service) {
 			driver.setService(service)
 		}
 
 		for destName, dest := range service.dests {
-			if _, exists := oldService.dests[destName]; !exists {
+			oldDest, exists := oldService.dests[destName]
+
+			if !exists {
 				driver.newServiceDest(service, dest)
-			} else {
+			} else if !dest.Equals(oldDest.Dest) {
 				driver.setServiceDest(service, dest)
 			}
 		}
@@ -214,7 +223,7 @@ func (driver *IPVSDriver) update(routes Routes, services Services) error {
 }
 
 // Update state from config
-func (driver *IPVSDriver) config(config config.Config) error {
+func (driver *IPVSDriver) Config(config config.Config) error {
 	// routes
 	routes, err := configRoutes(config.Routes)
 	if err != nil {

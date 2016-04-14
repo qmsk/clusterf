@@ -49,16 +49,16 @@ func (services Services) config(ipvsService ipvs.Service) Service {
 func configServices(configServices map[string]config.Service, routes Routes, options IPVSOptions) (Services, error) {
 	services := make(Services)
 
-	for _, configService := range configServices {
+	for serviceName, configService := range configServices {
 		for _, ipvsType := range ipvsTypes {
 			if ipvsService, err := configServiceFrontend(ipvsType, configService.Frontend, options); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("Invalid config for service %v: %v", serviceName, err)
 			} else if ipvsService != nil {
 				service := services.config(*ipvsService)
 
-				for _, configBackend := range configService.Backends {
+				for backendName, configBackend := range configService.Backends {
 					if ipvsDest, err := configServiceBackend(*ipvsService, configBackend, routes, options); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("Invalid config for service %v backend %v: %v", serviceName, backendName, err)
 					} else if ipvsDest != nil {
 						// TODO: dest merging
 						service.dests.config(*ipvsDest)
