@@ -19,6 +19,7 @@ func (routes Routes) Lookup(ip net.IP) *Route {
 
         } else if routeLength > matchLength {
             matchRoute = route
+            matchLength = routeLength
         }
     }
 
