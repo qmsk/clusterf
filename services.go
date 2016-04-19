@@ -33,8 +33,11 @@ func (services Services) sync(ipvsService ipvs.Service, ipvsDests []ipvs.Dest) {
 	}
 }
 
-func (services Services) config(ipvsService ipvs.Service) Service {
-	return services.get(ipvsService)
+func (services Services) config(ipvsService ipvs.Service, dests ServiceDests) {
+	services[ipvsService.String()] = Service{
+		Service:	ipvsService,
+		dests:		dests,
+	}
 }
 
 // Build a new services state from Config
@@ -46,16 +49,23 @@ func configServices(configServices map[string]config.Service, routes Routes, opt
 			if ipvsService, err := configServiceFrontend(ipvsType, configService.Frontend, options); err != nil {
 				return nil, fmt.Errorf("Invalid config for service %v: %v", serviceName, err)
 			} else if ipvsService != nil {
-				service := services.config(*ipvsService)
+				dests := make(ServiceDests)
 
 				for backendName, configBackend := range configService.Backends {
 					if ipvsDest, err := configServiceBackend(*ipvsService, configBackend, routes, options); err != nil {
 						return nil, fmt.Errorf("Invalid config for service %v backend %v: %v", serviceName, backendName, err)
 					} else if ipvsDest != nil {
 						// TODO: dest merging
-						service.dests.config(*ipvsDest)
+						dests.config(*ipvsDest)
 					}
 				}
+
+				if len(dests) == 0 && options.Elide {
+					// elide empty services
+					continue
+				}
+
+				services.config(*ipvsService, dests)
 			}
 		}
 	}

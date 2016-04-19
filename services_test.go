@@ -139,6 +139,59 @@ var testConfigServices = map[string]struct{
 			},
 		},
 	},
+
+	"frontend-elide": {
+		options:	IPVSOptions{
+			SchedName:	"wlc",
+			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+			Elide:		true,
+		},
+		configRoutes: map[string]config.Route{
+			"test1":   config.Route{Prefix4:"10.1.0.0/24", IpvsMethod:"masq"},
+			"default": config.Route{IpvsMethod:"filter"},
+		},
+		config:		map[string]config.Service{
+			"test": config.Service{
+				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
+				Backends:	map[string]config.ServiceBackend{
+					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
+					"test2":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8080, Weight:10},
+				},
+			},
+			"test2": config.Service{
+				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:81},
+				Backends:	map[string]config.ServiceBackend{
+					"test1":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8081, Weight:10},
+					"test2":	config.ServiceBackend{IPv4:"10.3.0.1", TCP:8081, Weight:10},
+				},
+			},
+
+		},
+		services:	Services{
+			"inet+tcp://10.0.0.1:80": Service{
+				Service: ipvs.Service{
+					Af:			syscall.AF_INET,
+					Protocol:	syscall.IPPROTO_TCP,
+					Addr:		net.IP{10,0,0,1},
+					Port:		80,
+
+					SchedName:	"wlc",
+					Flags:		ipvs.Flags{0, 0xffffffff},
+					Netmask:	0xffffffff,
+				},
+				dests: ServiceDests{
+					"10.1.0.1:80": Dest{
+						Dest: ipvs.Dest{
+							Addr:		net.IP{10,1,0,1},
+							Port:		80,
+							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+							Weight:		10,
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestConfigServices(t *testing.T) {

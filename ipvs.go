@@ -14,6 +14,8 @@ type IPVSOptions struct {
 	FwdMethod		ipvs.FwdMethod	`long:"ipvs-fwd-method" default:"masq"`
 	SchedName		string			`long:"ipvs-sched-name" default:"wlc"`
 
+	Elide			bool			`long:"ipvs-elide" help:"Omit services with no backends"`
+
 	Mock			bool			`long:"ipvs-mock" default:"false" help:"Do not connect to the kernel IPVS state"`
 	Noop			bool			`long:"ipvs-noop" default:"false" help:"Do not write to the kernel IPVS state"`
 }
