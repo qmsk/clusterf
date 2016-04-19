@@ -20,7 +20,7 @@ func TestConfigServices(t *testing.T) {
 		"test": config.Service{
 			Frontend:	config.ServiceFrontend{IPv4:"10.0.1.1", TCP:80},
 			Backends:	map[string]config.ServiceBackend{
-				"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80},
+				"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight: 10},
 			},
 		},
 	}

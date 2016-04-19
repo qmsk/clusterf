@@ -27,10 +27,12 @@ var testConfig Config = Config{
                 "test1": ServiceBackend{
                     IPv4:   "127.0.0.1",
                     TCP:    8081,
+                    Weight: 10,
                 },
                 "test2": ServiceBackend{
                     IPv4:   "127.0.0.1",
                     TCP:    8082,
+                    Weight: 10,
                 },
             },
         },
@@ -137,6 +139,7 @@ var testConfigUpdate = []struct {
                         "test2": ServiceBackend{
                             IPv4:   "127.0.0.1",
                             TCP:    8082,
+                            Weight: 10,
                         },
                     },
                 },

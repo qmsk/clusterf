@@ -8,8 +8,6 @@ import (
 	"syscall"
 )
 
-const IPVS_WEIGHT uint32 = 10
-
 type Dest struct {
 	ipvs.Dest
 }
@@ -68,7 +66,8 @@ func routeDest (ipvsDest ipvs.Dest, ipvsService ipvs.Service, routes Routes) (*i
 
 func configServiceBackend (ipvsService ipvs.Service, backend config.ServiceBackend, routes Routes, options IPVSOptions) (*ipvs.Dest, error) {
     ipvsDest := ipvs.Dest{
-        FwdMethod:  options.FwdMethod,
+        FwdMethod:  options.FwdMethod,		// default, overriden by route
+        Weight:     uint32(backend.Weight),
     }
 
     switch ipvsService.Af {
@@ -111,14 +110,6 @@ func configServiceBackend (ipvsService ipvs.Service, backend config.ServiceBacke
         }
     default:
         panic("invalid proto")
-    }
-
-    if backend.Weight == 0 {
-		// XXX: we also need to support 0-weight backends!
-		ipvsDest.Weight = IPVS_WEIGHT
-
-    } else {
-        ipvsDest.Weight = uint32(backend.Weight)
     }
 
 	if routeDest, err := routeDest(ipvsDest, ipvsService, routes); err != nil {

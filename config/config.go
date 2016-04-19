@@ -31,6 +31,8 @@ type ServiceBackend struct {
     Weight  uint    `json:"weight,omitempty"`   // default: 10
 }
 
+const ServiceBackendWeight uint = 10
+
 type Service struct {
     Frontend        ServiceFrontend
     Backends        map[string]ServiceBackend
@@ -51,7 +53,6 @@ func (service *Service) setBackend(backendName string, serviceBackend ServiceBac
     }
 
     service.Backends = serviceBackends
-
 }
 
 type Route struct {
@@ -210,7 +211,9 @@ func (config *Config) update(node Node) error {
             backendName := nodePath[3]
 
             if len(nodePath) == 4 && !node.IsDir {
-                var serviceBackend ServiceBackend
+                var serviceBackend = ServiceBackend{
+                    Weight:     ServiceBackendWeight,
+                }
 
                 if err := node.unmarshal(&serviceBackend); err != nil {
                     return fmt.Errorf("service %s backend %s: %s", serviceName, backendName, err)
