@@ -9,54 +9,64 @@ import (
     "testing"
 )
 
-// trivial testcase with a single service with a single backend on startup
-func TestConfigServices(t *testing.T) {
-	routes := make(Routes)
-	options := IPVSOptions{
-		SchedName:	"wlc",
-		FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-	}
-	servicesConfig := map[string]config.Service{
-		"test": config.Service{
-			Frontend:	config.ServiceFrontend{IPv4:"10.0.1.1", TCP:80},
-			Backends:	map[string]config.ServiceBackend{
-				"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight: 10},
+var testConfigServices = []struct{
+	routes			Routes
+	options			IPVSOptions
+	config			map[string]config.Service
+	services		Services
+}{
+	// trivial testcase with a single service with a single backend on startup
+	{
+		routes:		Routes{},
+		options:	IPVSOptions{
+			SchedName:	"wlc",
+			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+		},
+		config:		map[string]config.Service{
+			"test": config.Service{
+				Frontend:	config.ServiceFrontend{IPv4:"10.0.1.1", TCP:80},
+				Backends:	map[string]config.ServiceBackend{
+					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
+				},
 			},
 		},
-	}
+		services:	Services{
+			"inet+tcp://10.0.1.1:80": Service{
+				Service: ipvs.Service{
+					Af:			syscall.AF_INET,
+					Protocol:	syscall.IPPROTO_TCP,
+					Addr:		net.IP{10,0,1,1},
+					Port:		80,
 
-	testServices := Services{
-		"inet+tcp://10.0.1.1:80": Service{
-			Service: ipvs.Service{
-				Af:			syscall.AF_INET,
-				Protocol:	syscall.IPPROTO_TCP,
-				Addr:		net.IP{10,0,1,1},
-				Port:		80,
-
-				SchedName:	"wlc",
-				Flags:		ipvs.Flags{0, 0xffffffff},
-				Netmask:	0xffffffff,
-			},
-			dests: ServiceDests{
-				"10.1.0.1:80":	Dest{
-					Dest: ipvs.Dest{
-						Addr:		net.IP{10,1,0,1},
-						Port:		80,
-						FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-						Weight:		10,
+					SchedName:	"wlc",
+					Flags:		ipvs.Flags{0, 0xffffffff},
+					Netmask:	0xffffffff,
+				},
+				dests: ServiceDests{
+					"10.1.0.1:80":	Dest{
+						Dest: ipvs.Dest{
+							Addr:		net.IP{10,1,0,1},
+							Port:		80,
+							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+							Weight:		10,
+						},
 					},
 				},
 			},
 		},
-	}
+	},
+}
 
-    services, err := configServices(servicesConfig, routes, options)
-	if err != nil {
-		t.Fatalf("configServices error: %v\n", err)
-	}
+func TestConfigServices(t *testing.T) {
+	for _, test := range testConfigServices {
+		services, err := configServices(test.config, test.routes, test.options)
+		if err != nil {
+			t.Fatalf("configServices error: %v\n", err)
+		}
 
-	if !reflect.DeepEqual(services, testServices) {
-		t.Errorf("configServices mismatch:\n\t+ %#v\n\t- %#v\n", services, testServices)
+		if !reflect.DeepEqual(services, test.services) {
+			t.Errorf("configServices mismatch:\n\t+ %#v\n\t- %#v\n", services, test.services)
+		}
 	}
 }
 
