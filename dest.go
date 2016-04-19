@@ -12,31 +12,6 @@ type Dest struct {
 	ipvs.Dest
 }
 
-type ServiceDests map[string]Dest
-
-func (dests ServiceDests) get(ipvsDest ipvs.Dest) Dest {
-	if dest, exists := dests[ipvsDest.String()]; exists {
-		return dest
-	} else {
-		dest := Dest{
-			Dest:		ipvsDest,
-		}
-
-		dests[dest.String()] = dest
-
-		return dest
-	}
-}
-
-func (dests ServiceDests) sync(ipvsDest ipvs.Dest) {
-	// for side-effect
-	_ = dests.get(ipvsDest)
-}
-
-func (dests ServiceDests) config(ipvsDest ipvs.Dest) Dest {
-	return dests.get(ipvsDest)
-}
-
 func routeDest (ipvsDest ipvs.Dest, ipvsService ipvs.Service, routes Routes) (*ipvs.Dest, error) {
     route := routes.Lookup(ipvsDest.Addr)
     if route == nil {
