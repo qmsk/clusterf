@@ -4,38 +4,40 @@ import (
     "github.com/qmsk/clusterf/config"
     "github.com/qmsk/clusterf/ipvs"
 	"net"
-	"reflect"
+	"github.com/kylelemons/godebug/pretty"
     "syscall"
     "testing"
 )
 
-var testConfigServices = []struct{
-	routes			Routes
+var testConfigServices = map[string]struct{
 	options			IPVSOptions
+	configRoutes	map[string]config.Route
 	config			map[string]config.Service
 	services		Services
 }{
-	// trivial testcase with a single service with a single backend on startup
-	{
-		routes:		Routes{},
+	"simple": {
 		options:	IPVSOptions{
 			SchedName:	"wlc",
 			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
 		},
+		configRoutes: map[string]config.Route{
+
+		},
 		config:		map[string]config.Service{
 			"test": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.1.1", TCP:80},
+				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80, UDP:80},
 				Backends:	map[string]config.ServiceBackend{
-					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
+					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, UDP:8081, Weight:10},
+					"test2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8082, Weight:10},
 				},
 			},
 		},
 		services:	Services{
-			"inet+tcp://10.0.1.1:80": Service{
+			"inet+tcp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
 					Af:			syscall.AF_INET,
 					Protocol:	syscall.IPPROTO_TCP,
-					Addr:		net.IP{10,0,1,1},
+					Addr:		net.IP{10,0,0,1},
 					Port:		80,
 
 					SchedName:	"wlc",
@@ -43,10 +45,40 @@ var testConfigServices = []struct{
 					Netmask:	0xffffffff,
 				},
 				dests: ServiceDests{
-					"10.1.0.1:80":	Dest{
+					"10.1.0.1:8080": Dest{
 						Dest: ipvs.Dest{
 							Addr:		net.IP{10,1,0,1},
-							Port:		80,
+							Port:		8080,
+							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+							Weight:		10,
+						},
+					},
+					"10.1.0.2:8082": Dest{
+						Dest: ipvs.Dest{
+							Addr:		net.IP{10,1,0,2},
+							Port:		8082,
+							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+							Weight:		10,
+						},
+					},
+				},
+			},
+			"inet+udp://10.0.0.1:80": Service{
+				Service: ipvs.Service{
+					Af:			syscall.AF_INET,
+					Protocol:	syscall.IPPROTO_UDP,
+					Addr:		net.IP{10,0,0,1},
+					Port:		80,
+
+					SchedName:	"wlc",
+					Flags:		ipvs.Flags{0, 0xffffffff},
+					Netmask:	0xffffffff,
+				},
+				dests: ServiceDests{
+					"10.1.0.1:8081": Dest{
+						Dest: ipvs.Dest{
+							Addr:		net.IP{10,1,0,1},
+							Port:		8081,
 							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
 							Weight:		10,
 						},
@@ -58,14 +90,19 @@ var testConfigServices = []struct{
 }
 
 func TestConfigServices(t *testing.T) {
-	for _, test := range testConfigServices {
-		services, err := configServices(test.config, test.routes, test.options)
+	for testName, test := range testConfigServices {
+		routes, err := configRoutes(test.configRoutes)
 		if err != nil {
-			t.Fatalf("configServices error: %v\n", err)
+			t.Fatalf("%v configRoutes: %v\n", testName, err)
 		}
 
-		if !reflect.DeepEqual(services, test.services) {
-			t.Errorf("configServices mismatch:\n\t+ %#v\n\t- %#v\n", services, test.services)
+		services, err := configServices(test.config, routes, test.options)
+		if err != nil {
+			t.Fatalf("%v configServices error: %v\n", testName, err)
+		}
+
+		if diff := pretty.Compare(test.services, services); diff != "" {
+			t.Errorf("%v configServices incorrect:\n%s", testName, diff)
 		}
 	}
 }
