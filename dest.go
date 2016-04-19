@@ -12,33 +12,6 @@ type Dest struct {
 	ipvs.Dest
 }
 
-func routeDest (ipvsDest ipvs.Dest, ipvsService ipvs.Service, routes Routes) (*ipvs.Dest, error) {
-    route := routes.Lookup(ipvsDest.Addr)
-    if route == nil {
-        return &ipvsDest, nil
-    }
-
-    if route.ipvs_filter {
-        // ignore
-        return nil, nil
-    }
-
-    if route.ipvs_fwdMethod != nil {
-        ipvsDest.FwdMethod = *route.ipvs_fwdMethod
-    }
-
-    switch ipvsService.Af {
-    case syscall.AF_INET:
-        if route.Gateway4 != nil {
-            // chaining
-            ipvsDest.Addr = route.Gateway4
-            ipvsDest.Port = ipvsService.Port
-        }
-    }
-
-	return &ipvsDest, nil
-}
-
 func configServiceBackend (ipvsService ipvs.Service, backend config.ServiceBackend, routes Routes, options IPVSOptions) (*ipvs.Dest, error) {
     ipvsDest := ipvs.Dest{
         FwdMethod:  options.FwdMethod,		// default, overriden by route
@@ -87,13 +60,28 @@ func configServiceBackend (ipvsService ipvs.Service, backend config.ServiceBacke
         panic("invalid proto")
     }
 
-	if routeDest, err := routeDest(ipvsDest, ipvsService, routes); err != nil {
-		return nil, err
-	} else if routeDest == nil {
-		return nil, nil
-	} else {
-		ipvsDest = *routeDest
-	}
+	// apply routes
+    route := routes.Lookup(ipvsDest.Addr)
+    if route == nil {
+		// as-is
+        return &ipvsDest, nil
+    } else if route.ipvs_filter {
+        // ignore
+        return nil, nil
+    }
+
+    if route.ipvs_fwdMethod != nil {
+        ipvsDest.FwdMethod = *route.ipvs_fwdMethod
+    }
+
+    switch ipvsService.Af {
+    case syscall.AF_INET:
+        if route.Gateway4 != nil {
+            // chaining
+            ipvsDest.Addr = route.Gateway4
+            ipvsDest.Port = ipvsService.Port
+        }
+    }
 
 	return &ipvsDest, nil
 }
