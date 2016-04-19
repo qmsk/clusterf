@@ -35,8 +35,19 @@ func (dests ServiceDests) sync(ipvsDest ipvs.Dest) {
 	_ = dests.get(ipvsDest)
 }
 
-func (dests ServiceDests) config(ipvsDest ipvs.Dest) Dest {
-	return dests.get(ipvsDest)
+func (dests ServiceDests) config(ipvsDest ipvs.Dest) {
+	dest, exists := dests[ipvsDest.String()]
+	if exists {
+		// merge
+		dest.Weight += ipvsDest.Weight
+
+	} else {
+		dest = Dest{
+			Dest:	ipvsDest,
+		}
+	}
+
+	dests[ipvsDest.String()] = dest
 }
 
 // Lookup or initialize an ipvsService from a config ServiceFrontend

@@ -55,7 +55,6 @@ func configServices(configServices map[string]config.Service, routes Routes, opt
 					if ipvsDest, err := configServiceBackend(*ipvsService, configBackend, routes, options); err != nil {
 						return nil, fmt.Errorf("Invalid config for service %v backend %v: %v", serviceName, backendName, err)
 					} else if ipvsDest != nil {
-						// TODO: dest merging
 						dests.config(*ipvsDest)
 					}
 				}

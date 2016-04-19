@@ -192,6 +192,49 @@ var testConfigServices = map[string]struct{
 			},
 		},
 	},
+
+	"backend-merge": {
+		options:	IPVSOptions{
+			SchedName:	"wlc",
+			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+		},
+		configRoutes: map[string]config.Route{
+			"test1": config.Route{Prefix4:"10.1.0.0/24", Gateway4:"10.255.0.1", IpvsMethod:"droute"},
+		},
+		config:		map[string]config.Service{
+			"test": config.Service{
+				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
+				Backends:	map[string]config.ServiceBackend{
+					"test1-1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, Weight:10},
+					"test1-2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8080, Weight:10},
+				},
+			},
+		},
+		services:	Services{
+			"inet+tcp://10.0.0.1:80": Service{
+				Service: ipvs.Service{
+					Af:			syscall.AF_INET,
+					Protocol:	syscall.IPPROTO_TCP,
+					Addr:		net.IP{10,0,0,1},
+					Port:		80,
+
+					SchedName:	"wlc",
+					Flags:		ipvs.Flags{0, 0xffffffff},
+					Netmask:	0xffffffff,
+				},
+				dests: ServiceDests{
+					"10.255.0.1:80": Dest{
+						Dest: ipvs.Dest{
+							Addr:		net.IP{10,255,0,1},
+							Port:		80,
+							FwdMethod:	ipvs.IP_VS_CONN_F_DROUTE,
+							Weight:		20, // merged
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestConfigServices(t *testing.T) {
