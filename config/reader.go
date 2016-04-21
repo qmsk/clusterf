@@ -115,6 +115,11 @@ func (reader *Reader) start() {
 	go reader.run()
 }
 
+func (reader *Reader) stop() {
+	// XXX: not cool
+	close(reader.syncChan)
+}
+
 // Open all sources, and start running in preparation for Get or Listen()
 func (reader *Reader) Open(urls ...string) error {
 	for _, urlString := range urls {
