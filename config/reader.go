@@ -70,6 +70,7 @@ func (reader *Reader) open(source Source) error {
 	if syncSource, ok := source.(syncSource); !ok {
 
 	} else {
+		// Only set sync chan if we have a source to sync from
 		if reader.syncChan == nil {
 			reader.syncChan = make(chan Node)
 		}
@@ -103,6 +104,18 @@ func (reader *Reader) openURL(url *url.URL) error {
 	}
 }
 
+// Start after initial open() sync of all sources to our config
+func (reader *Reader) start() {
+	if reader.listenChan != nil {
+		panic(fmt.Errorf("Already running"))
+	}
+
+	reader.listenChan = make(chan Config)
+
+	go reader.run()
+}
+
+// Open all sources, and start running in preparation for Get or Listen()
 func (reader *Reader) Open(urls ...string) error {
 	for _, urlString := range urls {
 		if url, err := url.Parse(urlString); err != nil {
@@ -112,32 +125,32 @@ func (reader *Reader) Open(urls ...string) error {
 		}
 	}
 
+	reader.start()
+
 	return nil
 }
 
 // Get current config
 func (reader *Reader) Get() Config {
+	// XXX: unsafe
 	return reader.config
 }
 
 // Follow config updates
+// Closed if there are no sources to sync updates from, or on error.
+// TODO: errors from chan close
 func (reader *Reader) Listen() chan Config {
-	if reader.listenChan == nil {
-		reader.listenChan = make(chan Config)
-
-		go reader.listen()
-	}
-
 	return reader.listenChan
 }
 
-func (reader *Reader) listen() {
+func (reader *Reader) run() {
 	defer close(reader.listenChan)
 
 	// output initial state
 	reader.listenChan <- reader.config
 
 	if reader.syncChan == nil {
+		// did not open() any Sources to Sync() from, so no config updates to apply
 		return
 	}
 
