@@ -5,17 +5,6 @@ import (
     "testing"
 )
 
-type dummyConfigSource struct {
-
-}
-
-func (cs dummyConfigSource) String() string {
-    return "test"
-}
-
-var testConfigSource = dummyConfigSource{ }
-
-
 var testConfig Config = Config{
     Services: map[string]Service{
         "test": Service{
@@ -56,69 +45,69 @@ var testConfigUpdate = []struct {
 }{
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "", Value: "haha"},
+            Node{Path: "", Value: "haha"},
         },
         error: "Ignore unknown node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services", Value: "haha"},
+            Node{Path: "services", Value: "haha"},
         },
         error: "Ignore unknown node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "wtf", Value: "haha"},
+            Node{Path: "wtf", Value: "haha"},
         },
         error: "Ignore unknown node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "wtf", IsDir: true},
+            Node{Path: "wtf", IsDir: true},
         },
         error: "Ignore unknown node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services/wtf/frontend", IsDir: true},
+            Node{Path: "services/wtf/frontend", IsDir: true},
         },
         error: "Ignore unknown service wtf node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services/wtf/backends/test", IsDir: true},
+            Node{Path: "services/wtf/backends/test", IsDir: true},
         },
         error: "Ignore unknown service wtf backends node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services/wtf/backends/test/three", Value: "3"},
+            Node{Path: "services/wtf/backends/test/three", Value: "3"},
         },
         error: "Ignore unknown service wtf backends node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services/wtf/asdf", Value: "quux"},
+            Node{Path: "services/wtf/asdf", Value: "quux"},
         },
         error: "Ignore unknown service wtf node",
     },
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services/test/frontend", Value: "not json"},
+            Node{Path: "services/test/frontend", Value: "not json"},
         },
         error: "service test frontend: invalid character 'o' in literal null (expecting 'u')",
     },
 
     {
         nodes: []Node{
-            Node{Source: testConfigSource, Path:"", IsDir:true},
-            Node{Source: testConfigSource, Path:"services", IsDir:true},
-            Node{Source: testConfigSource, Path:"services/test", IsDir:true},
-            Node{Source: testConfigSource, Path:"services/test/frontend", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
-            Node{Source: testConfigSource, Path:"services/test/backends", IsDir:true},
-            Node{Source: testConfigSource, Path:"services/test/backends/test1", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
-            Node{Source: testConfigSource, Path:"services/test/backends/test2", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
-            Node{Source: testConfigSource, Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}"},
+            Node{Path:"", IsDir:true},
+            Node{Path:"services", IsDir:true},
+            Node{Path:"services/test", IsDir:true},
+            Node{Path:"services/test/frontend", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
+            Node{Path:"services/test/backends", IsDir:true},
+            Node{Path:"services/test/backends/test1", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
+            Node{Path:"services/test/backends/test2", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
+            Node{Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}"},
         },
         config: testConfig,
     },
@@ -126,7 +115,7 @@ var testConfigUpdate = []struct {
     {
         initConfig: testConfig,
         nodes: []Node{
-            Node{Source: testConfigSource, Path:"services/test/backends/test1", Remove: true},
+            Node{Path:"services/test/backends/test1", Remove: true},
         },
         config: Config{
             Services: map[string]Service{
@@ -155,7 +144,7 @@ var testConfigUpdate = []struct {
     {
         initConfig: testConfig,
         nodes: []Node{
-            Node{Source: testConfigSource, Path:"services/test/backends", IsDir:true, Remove: true},
+            Node{Path:"services/test/backends", IsDir:true, Remove: true},
         },
         config: Config{
             Services: map[string]Service{
@@ -178,7 +167,7 @@ var testConfigUpdate = []struct {
     {
         initConfig: testConfig,
         nodes: []Node{
-            Node{Source: testConfigSource, Path:"services/test", IsDir:true, Remove: true},
+            Node{Path:"services/test", IsDir:true, Remove: true},
         },
         config: Config{
             Services: map[string]Service{
@@ -194,7 +183,7 @@ var testConfigUpdate = []struct {
     {
         initConfig: testConfig,
         nodes: []Node{
-            Node{Source: testConfigSource, Path: "services", IsDir: true, Remove: true},
+            Node{Path: "services", IsDir: true, Remove: true},
         },
         config: Config{
             Services: map[string]Service{},
