@@ -2,9 +2,9 @@ package config
 
 import (
 	"github.com/kylelemons/godebug/pretty"
-	"testing"
 	"math/rand"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -17,19 +17,21 @@ type testReaderSource struct{
 	syncGroup	*sync.WaitGroup
 }
 
-func (test testReaderSource) String() string {
+func (test *testReaderSource) String() string {
 	return test.name
 }
 
-func (test testReaderSource) Scan() ([]Node, error) {
-	for _, node := range test.scanNodes {
+func (test *testReaderSource) Scan() ([]Node, error) {
+	for i, node := range test.scanNodes {
 		node.Source = test
+
+		test.scanNodes[i] = node
 	}
 
 	return test.scanNodes, nil
 }
 
-func (test testReaderSource) Sync(syncChan chan Node) error {
+func (test *testReaderSource) Sync(syncChan chan Node) error {
 	test.syncGroup.Add(1)
 
 	go func(){
@@ -48,7 +50,7 @@ func (test testReaderSource) Sync(syncChan chan Node) error {
 	return nil
 }
 
-var testReaderSources = map[string]testReaderSource{
+var testReaderSources = map[string]*testReaderSource{
 	"test1": {
 		name: "test1",
         scanNodes: []Node{
@@ -79,7 +81,7 @@ var testReaderSources = map[string]testReaderSource{
         },
         syncNodes: []Node{
             Node{Path:"services/test2/backends/test1", Value: "{\"ipv4\": \"192.168.2.1\", \"tcp\": 8080}"},
-            // Node{Path:"services", IsDir:true, Remove: true},
+            Node{Path:"services", IsDir:true, Remove: true},
 		},
 	},
 }
@@ -93,7 +95,7 @@ var testReaderConfig Config = Config{
             },
             Backends: map[string]ServiceBackend{},
         },
-		"test2": Service{
+		/*"test2": Service{
             Frontend: ServiceFrontend{
                 IPv4:   "192.0.2.2",
                 TCP:    80,
@@ -105,7 +107,7 @@ var testReaderConfig Config = Config{
 					Weight: 10,
 				},
 			},
-		},
+		},*/
         "test6": Service{
             Frontend:   ServiceFrontend{
                 IPv6: "2001:db8::1",
@@ -159,7 +161,12 @@ func TestReaderUpdate(t *testing.T) {
 		readerConfig = config
 	}
 
-	if diff := pretty.Compare(testReaderConfig, readerConfig); diff != "" {
+	prettyConfig := pretty.Config{
+		// omit Meta node
+		IncludeUnexported:	false,
+	}
+
+	if diff := prettyConfig.Compare(testReaderConfig, readerConfig); diff != "" {
 		t.Errorf("reader config:\n%s", diff)
 	}
 }

@@ -1,7 +1,7 @@
 package config
 
 import (
-    "reflect"
+	"github.com/kylelemons/godebug/pretty"
     "testing"
 )
 
@@ -215,8 +215,13 @@ func TestConfigUpdate(t *testing.T) {
             continue
         }
 
-        if !reflect.DeepEqual(config, test.config) {
-            t.Errorf("incorrect config: %#v\n\texpected: %#v", config, test.config)
-        }
+		prettyConfig := pretty.Config{
+			// omit Meta node
+			IncludeUnexported:	false,
+		}
+
+		if diff := prettyConfig.Compare(config, test.config); diff != "" {
+			t.Errorf("incorrect config:\n%s", diff)
+		}
     }
 }

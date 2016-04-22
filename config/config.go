@@ -14,8 +14,27 @@ type Source interface {
 }
 
 /* Config objects */
+type Meta struct {
+	node		Node	// origin node
+}
+
+
+func (meta Meta) Source() string {
+	if meta.node.Source != nil {
+		return meta.node.Source.String()
+	} else {
+		// some nodes are implicitly created, and thus not directly applicable..
+		return ""
+	}
+}
+
+func (meta Meta) Path() string {
+	return meta.node.Path
+}
 
 type ServiceFrontend struct {
+	Meta			`json:"-"`
+
     IPv4    string  `json:"ipv4,omitempty"`
     IPv6    string  `json:"ipv6,omitempty"`
     TCP     uint16  `json:"tcp,omitempty"`
@@ -23,6 +42,8 @@ type ServiceFrontend struct {
 }
 
 type ServiceBackend struct {
+	Meta			`json:"-"`
+
     IPv4    string  `json:"ipv4,omitempty"`
     IPv6    string  `json:"ipv6,omitempty"`
     TCP     uint16  `json:"tcp,omitempty"`
@@ -34,6 +55,8 @@ type ServiceBackend struct {
 const ServiceBackendWeight uint = 10
 
 type Service struct {
+	Meta			`json:"-"`
+
     Frontend        ServiceFrontend
     Backends        map[string]ServiceBackend
 }
@@ -55,7 +78,29 @@ func (service *Service) setBackend(backendName string, serviceBackend ServiceBac
     service.Backends = serviceBackends
 }
 
+// Apply a recursive remove from source
+func (service *Service) removeBackends(source Source) {
+    serviceBackends := make(map[string]ServiceBackend)
+
+    for backendName, backend := range service.Backends {
+		if backend.Source() == source.String() {
+			//log.Printf("service %s drop source=%s backends: %s source=%s\n", service.Path(), source.String(), backendName, backend.Source())
+
+			// remove all from this source
+			continue
+		} else {
+			//log.Printf("service %s keep source=%s backends: %s source=%s\n", service.Path(), source.String(), backendName, backend.Source())
+		}
+
+        serviceBackends[backendName] = backend
+    }
+
+    service.Backends = serviceBackends
+}
+
 type Route struct {
+	Meta			`json:"-"`
+
     // IPv4 prefix to match
     // empty for default match
     Prefix4     string
@@ -94,10 +139,23 @@ func (config *Config) setService(serviceName string, service Service, remove boo
 }
 
 func (config *Config) updateServices(node Node) error {
-    if node.Remove {
-        // reset
-        config.Services = make(map[string]Service)
-    }
+	if node.Remove {
+		services := make(map[string]Service)
+
+		for serviceName, service := range config.Services {
+			if service.Source() == node.Source.String() {
+				// remove service from this source
+				continue
+			} else {
+				// remove any backends from this source
+				service.removeBackends(node.Source)
+			}
+
+			services[serviceName] = service
+		}
+
+		config.Services = services
+	}
 
     return nil
 }
@@ -113,6 +171,8 @@ func (config *Config) updateService(node Node, serviceName string) error {
 func (config *Config) updateServiceFrontend(node Node, serviceName string, serviceFrontend ServiceFrontend) error {
     service := config.Services[serviceName]
 
+	// service is owned by whatever source has its Frontend
+	service.node = node
     service.Frontend = serviceFrontend
 
     config.setService(serviceName, service, node.Remove)
@@ -123,10 +183,9 @@ func (config *Config) updateServiceFrontend(node Node, serviceName string, servi
 func (config *Config) updateServiceBackends(node Node, serviceName string) error {
     service := config.Services[serviceName]
 
-    if node.Remove {
-        // reset
-        service.Backends = make(map[string]ServiceBackend)
-    }
+	if node.Remove {
+		service.removeBackends(node.Source)
+	}
 
     config.setService(serviceName, service, false)
 
@@ -195,7 +254,9 @@ func (config *Config) update(node Node) error {
             return config.updateService(node, serviceName)
 
         } else if len(nodePath) == 3 && nodePath[2] == "frontend" && !node.IsDir {
-            var serviceFrontend ServiceFrontend
+            var serviceFrontend = ServiceFrontend{
+				Meta:       Meta{node:node},
+			}
 
             if err := node.unmarshal(&serviceFrontend); err != nil {
                 return fmt.Errorf("service %s frontend: %s", serviceName, err)
@@ -212,6 +273,7 @@ func (config *Config) update(node Node) error {
 
             if len(nodePath) == 4 && !node.IsDir {
                 var serviceBackend = ServiceBackend{
+					Meta:       Meta{node:node},
                     Weight:     ServiceBackendWeight,
                 }
 
@@ -236,7 +298,9 @@ func (config *Config) update(node Node) error {
         routeName := nodePath[1]
 
         if len(nodePath) == 2 && !node.IsDir {
-            var route Route
+            var route = Route{
+				Meta:       Meta{node:node},
+			}
 
             if err := node.unmarshal(&route); err != nil {
                 return fmt.Errorf("route %s: %s", routeName, err)
