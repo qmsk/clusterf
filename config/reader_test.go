@@ -55,6 +55,8 @@ var testReaderSources = map[string]*testReaderSource{
 		name: "test1",
         scanNodes: []Node{
             Node{Path:"", IsDir:true},
+			Node{Path:"routes", IsDir:true},
+			Node{Path:"routes/test1", Value: "{\"Prefix4\": \"192.168.1.0/24\", \"IpvsMethod\": \"droute\"}"},
             Node{Path:"services", IsDir:true},
             Node{Path:"services/test", IsDir:true},
             Node{Path:"services/test/frontend", Value: "{\"ipv4\": \"192.0.2.0\", \"tcp\": 80}"},
@@ -68,6 +70,7 @@ var testReaderSources = map[string]*testReaderSource{
             Node{Path:"services/test/backends", IsDir:true, Remove: true},
             Node{Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 80}"},
 			Node{Path:"services/test6/backends/test1", Value: "{\"ipv6\": \"2001:db8:1::1\", \"tcp\": 8080}"},
+            Node{Path:"routes", IsDir:true, Remove: true},
 		},
 	},
 	"test2": {
@@ -82,6 +85,8 @@ var testReaderSources = map[string]*testReaderSource{
         syncNodes: []Node{
             Node{Path:"services/test2/backends/test1", Value: "{\"ipv4\": \"192.168.2.1\", \"tcp\": 8080}"},
             Node{Path:"services", IsDir:true, Remove: true},
+			Node{Path:"routes", IsDir:true},
+			Node{Path:"routes/test2", Value: "{\"Prefix4\": \"192.168.2.0/24\", \"IpvsMethod\": \"droute\"}"},
 		},
 	},
 }
@@ -122,6 +127,16 @@ var testReaderConfig Config = Config{
 			},
         },
     },
+	Routes: map[string]Route{
+		/* "test1": Route{
+			Prefix4:	"192.168.1.0/24",
+			IpvsMethod: "droute",
+		}, */
+		"test2": Route{
+			Prefix4:	"192.168.2.0/24",
+			IpvsMethod: "droute",
+		},
+	},
 }
 
 

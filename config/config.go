@@ -202,10 +202,20 @@ func (config *Config) updateServiceBackend(node Node, serviceName string, backen
 }
 
 func (config *Config) updateRoutes(node Node) error {
-    if node.Remove {
-        // reset
-        config.Routes = make(map[string]Route)
-    }
+	if node.Remove {
+		routes := make(map[string]Route)
+
+		for routeName, route := range config.Routes {
+			if route.Source() == node.Source.String() {
+				// remove from this source
+				continue
+			}
+
+			routes[routeName] = route
+		}
+
+		config.Routes = routes
+	}
 
     return nil
 }
