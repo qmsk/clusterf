@@ -94,14 +94,14 @@ var testReaderSources = map[string]*testReaderSource{
 var testReaderConfig Config = Config{
     Services: map[string]Service{
         "test": Service{
-            Frontend: ServiceFrontend{
+            Frontend: &ServiceFrontend{
                 IPv4:   "192.0.2.0",
                 TCP:    80,
             },
             Backends: map[string]ServiceBackend{},
         },
 		/*"test2": Service{
-            Frontend: ServiceFrontend{
+            Frontend: &ServiceFrontend{
                 IPv4:   "192.0.2.2",
                 TCP:    80,
             },
@@ -114,7 +114,7 @@ var testReaderConfig Config = Config{
 			},
 		},*/
         "test6": Service{
-            Frontend:   ServiceFrontend{
+            Frontend:   &ServiceFrontend{
                 IPv6: "2001:db8::1",
                 TCP:  80,
             },

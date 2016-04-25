@@ -57,7 +57,7 @@ const ServiceBackendWeight uint = 10
 type Service struct {
 	Meta			`json:"-"`
 
-    Frontend        ServiceFrontend
+    Frontend        *ServiceFrontend
     Backends        map[string]ServiceBackend
 }
 
@@ -173,7 +173,12 @@ func (config *Config) updateServiceFrontend(node Node, serviceName string, servi
 
 	// service is owned by whatever source has its Frontend
 	service.node = node
-    service.Frontend = serviceFrontend
+
+	if node.Remove {
+		service.Frontend = nil
+	} else {
+		service.Frontend = &serviceFrontend
+	}
 
     config.setService(serviceName, service, node.Remove)
 

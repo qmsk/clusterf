@@ -8,7 +8,7 @@ import (
 var testConfig Config = Config{
     Services: map[string]Service{
         "test": Service{
-            Frontend: ServiceFrontend{
+            Frontend: &ServiceFrontend{
                 IPv4:   "127.0.0.1",
                 TCP:    8080,
             },
@@ -26,7 +26,7 @@ var testConfig Config = Config{
             },
         },
         "test6": Service{
-            Frontend:   ServiceFrontend{
+            Frontend: &ServiceFrontend{
                 IPv6: "2001:db8::1",
                 TCP:  8080,
             },
@@ -103,11 +103,11 @@ var testConfigUpdate = []struct {
             Node{Path:"", IsDir:true},
             Node{Path:"services", IsDir:true},
             Node{Path:"services/test", IsDir:true},
-            Node{Path:"services/test/frontend", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8080}"},
+			Node{Path:"services/test/frontend", Value: `{"ipv4":"127.0.0.1","tcp":8080}`},
             Node{Path:"services/test/backends", IsDir:true},
-            Node{Path:"services/test/backends/test1", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8081}"},
-            Node{Path:"services/test/backends/test2", Value: "{\"ipv4\": \"127.0.0.1\", \"tcp\": 8082}"},
-            Node{Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 8080}"},
+			Node{Path:"services/test/backends/test1", Value: `{"ipv4":"127.0.0.1","tcp":8081,"weight":10}`},
+			Node{Path:"services/test/backends/test2", Value: `{"ipv4":"127.0.0.1","tcp":8082,"weight":10}`},
+            Node{Path:"services/test6/frontend", Value: `{"ipv6":"2001:db8::1","tcp":8080}`},
         },
         config: testConfig,
     },
@@ -120,7 +120,7 @@ var testConfigUpdate = []struct {
         config: Config{
             Services: map[string]Service{
                 "test": Service{
-                    Frontend: ServiceFrontend{
+                    Frontend: &ServiceFrontend{
                         IPv4:   "127.0.0.1",
                         TCP:    8080,
                     },
@@ -133,7 +133,7 @@ var testConfigUpdate = []struct {
                     },
                 },
                 "test6": Service{
-                    Frontend:   ServiceFrontend{
+                    Frontend:   &ServiceFrontend{
                         IPv6: "2001:db8::1",
                         TCP:  8080,
                     },
@@ -149,14 +149,14 @@ var testConfigUpdate = []struct {
         config: Config{
             Services: map[string]Service{
                 "test": Service{
-                    Frontend: ServiceFrontend{
+                    Frontend: &ServiceFrontend{
                         IPv4:   "127.0.0.1",
                         TCP:    8080,
                     },
                     Backends: map[string]ServiceBackend{},
                 },
                 "test6": Service{
-                    Frontend:   ServiceFrontend{
+                    Frontend:   &ServiceFrontend{
                         IPv6: "2001:db8::1",
                         TCP:  8080,
                     },
@@ -172,7 +172,7 @@ var testConfigUpdate = []struct {
         config: Config{
             Services: map[string]Service{
                 "test6": Service{
-                    Frontend:   ServiceFrontend{
+                    Frontend:   &ServiceFrontend{
                         IPv6: "2001:db8::1",
                         TCP:  8080,
                     },
