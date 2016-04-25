@@ -331,6 +331,47 @@ func (config *Config) update(node Node) error {
     }
 }
 
+func (config Config) walk(visit func(node Node)) (err error) {
+	defer func(){
+		if panicValue := recover(); panicValue == nil {
+
+		} else if panicError, ok := panicValue.(error); ok {
+			err = panicError
+		} else {
+			panic(panicValue)
+		}
+	}()
+
+	if config.Routes != nil {
+		for routeName, route := range config.Routes {
+			visit(makeNode(route, "routes", routeName))
+		}
+	}
+
+	if config.Services != nil {
+		for serviceName, service := range config.Services {
+			if service.Frontend != nil {
+				visit(makeNode(service.Frontend, "services", serviceName, "frontend"))
+			}
+
+			for backendName, backend := range service.Backends {
+				visit(makeNode(backend, "services", serviceName, "backends", backendName))
+			}
+		}
+	}
+
+	return
+}
+
+func (config Config) compile() (map[string]Node, error) {
+	var nodes = map[string]Node{}
+
+	err := config.walk(func(node Node){
+		nodes[node.Path] = node
+	})
+	return nodes, err
+}
+
 /*
 func (self ConfigService) Path() string {
     return makePath("services", self.ServiceName)

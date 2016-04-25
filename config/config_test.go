@@ -225,3 +225,64 @@ func TestConfigUpdate(t *testing.T) {
 		}
     }
 }
+
+func makeNodeMap(nodes []Node) map[string]Node {
+	nodeMap := map[string]Node{}
+
+	for _, node := range nodes {
+		nodeMap[node.Path] = node
+	}
+
+	return nodeMap
+}
+
+// Compile config to nodes
+var testConfigCompile = []struct {
+    config      Config
+    nodes       map[string]Node
+
+    // expect error from .compile()
+    error       string
+}{
+	{
+		config:		Config{},
+		nodes:		map[string]Node{},
+	},
+    {
+        config: testConfig,
+        nodes:  makeNodeMap([]Node{
+            Node{Path:"services/test/frontend", Value: `{"ipv4":"127.0.0.1","tcp":8080}`},
+			Node{Path:"services/test/backends/test1", Value: `{"ipv4":"127.0.0.1","tcp":8081,"weight":10}`},
+			Node{Path:"services/test/backends/test2", Value: `{"ipv4":"127.0.0.1","tcp":8082,"weight":10}`},
+            Node{Path:"services/test6/frontend", Value: `{"ipv6":"2001:db8::1","tcp":8080}`},
+        }),
+    },
+}
+
+func TestConfigCompile(t *testing.T) {
+    for _, test := range testConfigCompile {
+		nodes, err := test.config.compile()
+
+        if err == nil && test.error == "" {
+
+        } else if err != nil && test.error == "" {
+            t.Errorf("unxpected config.compile error: %v\n", err)
+            continue
+        } else if err == nil && test.error != "" {
+            t.Errorf("expected config.compile error: %v\n", test.error)
+            continue
+        } else if err.Error() != test.error {
+            t.Errorf("incorrect config.compile error: %v\n\tshould be: %v\n", err, test.error)
+            continue
+        }
+
+		prettyConfig := pretty.Config{
+			// omit Meta node
+			IncludeUnexported:	false,
+		}
+
+		if diff := prettyConfig.Compare(test.nodes, nodes); diff != "" {
+			t.Errorf("incorrect nodes:\n%s", diff)
+		}
+    }
+}
