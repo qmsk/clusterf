@@ -3,12 +3,12 @@ package config
 import (
 	"fmt"
 	"log"
-	"net/url"
 	"strings"
 )
 
 type ReaderOptions struct {
-	SourceURL		[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceOptions
+	SourceURLs		[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
 
 	FilterRoutes	string		`long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
 }
@@ -19,9 +19,18 @@ func (options ReaderOptions) Reader() (*Reader, error) {
 		options:		options,
 	}
 
-	if err := reader.Open(options.SourceURL...); err != nil {
-		return nil, err
+	// Open all sources, and start running in preparation for Get or Listen()
+	for _, urlString := range options.SourceURLs {
+		if source, err := options.SourceOptions.openURL(urlString); err != nil {
+			return nil, err
+		} else if err := reader.open(source); err != nil {
+			return nil, err
+		} else {
+
+		}
 	}
+
+	reader.start()
 
 	return &reader, nil
 }
@@ -33,16 +42,6 @@ type Reader struct {
 
 	syncChan	chan Node
 	listenChan	chan Config
-}
-
-type scanSource interface {
-	Source
-
-	Scan() ([]Node, error)
-}
-
-type syncSource interface {
-	Sync(chan Node) error
 }
 
 func (reader *Reader) update(node Node) error {
@@ -83,27 +82,6 @@ func (reader *Reader) open(source Source) error {
 	return nil
 }
 
-func (reader *Reader) openURL(url *url.URL) error {
-	switch url.Scheme {
-	case "etcd", "etcd+http", "etcd+https":
-		if source, err := openEtcdSource(url); err != nil {
-			return err
-		} else {
-			return reader.open(source)
-		}
-
-	case "file":
-		if source, err := openFileSource(url); err != nil {
-			return err
-		} else {
-			return reader.open(source)
-		}
-
-	default:
-		return fmt.Errorf("Invalid config URL Scheme=%v: %v\n", url.Scheme, url)
-	}
-}
-
 // Start after initial open() sync of all sources to our config
 func (reader *Reader) start() {
 	if reader.listenChan != nil {
@@ -118,21 +96,6 @@ func (reader *Reader) start() {
 func (reader *Reader) stop() {
 	// XXX: not cool
 	close(reader.syncChan)
-}
-
-// Open all sources, and start running in preparation for Get or Listen()
-func (reader *Reader) Open(urls ...string) error {
-	for _, urlString := range urls {
-		if url, err := url.Parse(urlString); err != nil {
-			return err
-		} else if err := reader.openURL(url); err != nil {
-			return err
-		}
-	}
-
-	reader.start()
-
-	return nil
 }
 
 // Get current config

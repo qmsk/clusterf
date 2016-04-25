@@ -6,31 +6,38 @@ import (
     "fmt"
     "log"
     "strings"
+	"time"
 	"net/url"
 )
 
-func openEtcdSource(url *url.URL) (*EtcdSource, error) {
-	etcdOptions := EtcdOptions{
-		Hosts:	strings.Split(url.Host, ","),
-		Prefix:	url.Path,
-	}
-
-	switch url.Scheme {
-	case "etcd", "etcd+http":
-		etcdOptions.Scheme = "http"
-	case "etcd+https":
-		etcdOptions.Scheme = "https"
-	}
-
-	return etcdOptions.Open()
-}
-
-
 type EtcdOptions struct {
-	Scheme		string
-    Hosts		[]string
-    Prefix      string
+	Scheme		string			`long:"etcd-scheme" value-name:"http|https" default:"http"`
+	Hosts		[]string		`long:"etcd-host" value-name:"HOST:PORT"`
+	Prefix      string			`long:"etcd-prefix" value-name:"/PATH" default:"/clusterf"`
+	TTL			time.Duration	`long:"etcd-ttl" default:"10s"`
 }
+
+func (options EtcdOptions) OpenURL(url *url.URL) (*EtcdSource, error) {
+	switch url.Scheme {
+	case "etcd":
+
+	case "etcd+http":
+		options.Scheme = "http"
+	case "etcd+https":
+		options.Scheme = "https"
+	}
+
+	for _, host := range strings.Split(url.Host, ",") {
+		options.Hosts = append(options.Hosts, host)
+	}
+
+	if url.Path != "" {
+		options.Prefix = url.Path
+	}
+
+	return options.Open()
+}
+
 
 func (options EtcdOptions) String() string {
 	return fmt.Sprintf("etcd+%s://%s%s", options.Scheme, strings.Join(options.Hosts, ","), options.Prefix)
@@ -72,6 +79,10 @@ type EtcdSource struct {
 
 	// state to track changes from Scan() to Sync()
     syncIndex   uint64
+
+	// refresh nodes
+	writeChan	chan map[string]Node
+	flushChan	chan error
 }
 
 func (etcd *EtcdSource) String() string {
@@ -223,26 +234,124 @@ func (etcd *EtcdSource) syncNode(etcdAction string, etcdNode *client.Node) (Node
 	return node, nil
 }
 
-/*
-// Publish a config into etcd
-func (etcd *EtcdSource) Publish(config Config) error {
-    var ttl uint64 = 0
+func (etcd *EtcdSource) refresh(node Node) error {
+	var opts = client.SetOptions{
+		TTL:     etcd.options.TTL,
+		Refresh: true,
+	}
 
-    if node, err := makeNode(config); err != nil {
-        return err
-    } else if _, err := etcd.client.Set(etcd.path(node.Path), node.Value, ttl); err != nil {
-        return err
-    } else {
-        return nil
-    }
+	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), node.Value, &opts); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
 
-// Retract a config from etcd
-func (etcd *EtcdSource) Retract(config Config) error {
-    if _, err := etcd.client.Delete(etcd.path(config.Path()), false); err != nil {
-        return err
-    } else {
-        return nil
-    }
+func (etcd *EtcdSource) set(node Node) error {
+	var opts = client.SetOptions{
+		TTL: etcd.options.TTL,
+		Dir: node.IsDir,
+	}
+
+	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), node.Value, &opts); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
-*/
+
+func (etcd *EtcdSource) remove(node Node) error {
+	var opts = client.DeleteOptions{
+		Dir: node.IsDir,
+	}
+
+	if node.IsDir {
+		opts.Recursive = true
+	}
+
+	if _, err := etcd.keysAPI.Delete(context.Background(), etcd.path(node.Path), &opts); err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func (etcd *EtcdSource) writer() {
+	defer close(etcd.flushChan)
+
+	var nodes map[string]Node
+	var timer = time.Tick(etcd.options.TTL / 2)
+
+	for {
+		select {
+		case <-timer:
+			// XXX: how much of our TTL does this refresh-loop consume...?
+			for _, node := range nodes {
+				if err := etcd.refresh(node); err != nil {
+					log.Printf("config:EtcdSource %v: writer: refresh %v: %v\n", etcd, node, err)
+				}
+			}
+		case writeNodes, open := <-etcd.writeChan:
+			// if the chan is closed from Flush(), this will get an empty map - and we remove all nodes
+
+			// update to new dict
+			for key, node := range nodes {
+				if _, exists := writeNodes[key]; !exists {
+					// removed
+					if err := etcd.remove(node); err != nil {
+						log.Printf("config:EtcdSource %v: writer: remove %v: %v\n", etcd, node, err)
+					}
+				}
+			}
+			for key, node := range writeNodes {
+				if oldNode, exists := nodes[key]; !exists {
+					// new node
+					if err := etcd.set(node); err != nil {
+						log.Printf("config:EtcdSource %v: writer: set %v: %v\n", etcd, node, err)
+					}
+				} else if !node.Equals(oldNode) {
+					// changed
+					if err := etcd.set(node); err != nil {
+						log.Printf("config:EtcdSource %v: writer: set %v: %v\n", etcd, node, err)
+					}
+				}
+			}
+
+			if open {
+				nodes = writeNodes
+			} else {
+				// exit
+				return
+			}
+		}
+	}
+}
+
+// Publish a config into etcd. The node will be refreshed per our TTL
+func (etcd *EtcdSource) Write(nodes map[string]Node) error {
+	if etcd.writeChan == nil {
+		etcd.writeChan = make(chan map[string]Node)
+
+		go etcd.writer()
+	}
+
+	etcd.writeChan <- nodes
+
+	// XXX: errors?
+	return nil
+}
+
+// Remove all published nodes
+func (etcd *EtcdSource) Flush() (err error) {
+	if etcd.writeChan != nil {
+		close(etcd.writeChan)
+	}
+
+	// wait for flush to complete
+	for err = range etcd.flushChan {
+		log.Printf("config:EtcdSource %v: Flush: %v\n", etcd, err)
+	}
+
+	return
+}
+
