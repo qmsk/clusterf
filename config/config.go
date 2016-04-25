@@ -83,7 +83,7 @@ func (service *Service) removeBackends(source Source) {
     serviceBackends := make(map[string]ServiceBackend)
 
     for backendName, backend := range service.Backends {
-		if backend.Source() == source.String() {
+		if source == nil || backend.Source() == source.String() {
 			//log.Printf("service %s drop source=%s backends: %s source=%s\n", service.Path(), source.String(), backendName, backend.Source())
 
 			// remove all from this source
@@ -143,7 +143,7 @@ func (config *Config) updateServices(node Node) error {
 		services := make(map[string]Service)
 
 		for serviceName, service := range config.Services {
-			if service.Source() == node.Source.String() {
+			if node.Source == nil || service.Source() == node.Source.String() {
 				// remove service from this source
 				continue
 			} else {
