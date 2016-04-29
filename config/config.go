@@ -362,21 +362,3 @@ func (config Config) compile() (map[string]Node, error) {
 	})
 	return nodes, err
 }
-
-/*
-func (self ConfigService) Path() string {
-    return makePath("services", self.ServiceName)
-}
-
-func (self ConfigServiceFrontend) Path() string {
-    return makePath("services", self.ServiceName, "frontend")
-}
-
-func (self ConfigServiceBackend) Path() string {
-    return makePath("services", self.ServiceName, "backends", self.BackendName)
-}
-
-func (self ConfigRoute) Path() string {
-    return makePath("routes", self.RouteName)
-}
-*/

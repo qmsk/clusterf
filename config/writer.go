@@ -46,3 +46,8 @@ func (writer *Writer) Write(config Config) error {
 		return writer.source.Write(nodes)
 	}
 }
+
+// Stop publishing
+func (writer *Writer) Close() error {
+	return writer.source.Flush()
+}
