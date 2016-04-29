@@ -9,12 +9,12 @@ import (
     "strconv"
 )
 
-type DockerConfig struct {
-    Endpoint string
+type Options struct {
+	Endpoint string	`long:"docker-endpoint"`
 }
 
 type Docker struct {
-    config DockerConfig
+	options	Options
     client *docker.Client
 
     // convenience info from docker
@@ -78,8 +78,8 @@ func (self ContainerEvent) String() string {
     return fmt.Sprintf("%s:%s", self.Status, self.ID)
 }
 
-func (self DockerConfig) Open() (*Docker, error) {
-    d := &Docker{config: self}
+func (options Options) Open() (*Docker, error) {
+	d := &Docker{options: options}
 
     if err := d.open(); err != nil {
         return nil, err
@@ -92,8 +92,8 @@ func (self *Docker) open() error {
     var dockerClient *docker.Client
     var err error
 
-    if self.config.Endpoint != "" {
-        dockerClient, err = docker.NewClient(self.config.Endpoint)
+    if self.options.Endpoint != "" {
+        dockerClient, err = docker.NewClient(self.options.Endpoint)
     } else {
         dockerClient, err = docker.NewClientFromEnv()
     }
@@ -122,7 +122,7 @@ func (self *Docker) open() error {
 }
 
 func (self *Docker) String() string {
-    return fmt.Sprintf("Docker<%v>", self.config)
+    return fmt.Sprintf("Docker<%v>", self.options)
 }
 
 func parsePort(portString string) (uint16, error) {
@@ -190,7 +190,7 @@ func (self *Docker) inspectContainer(id string) (*Container, error) {
  *
  * TODO: somehow synchronize this with Subscribe() events to ensure consistency during listings?
  */
-func (self *Docker) List() (out []*Container, err error) {
+func (self *Docker) List() (out []Container, err error) {
     containers, err := self.client.ListContainers(docker.ListContainersOptions{All: true})
     if err != nil {
         log.Printf("%v.ListContainers: %v\n", self, err)
@@ -201,7 +201,7 @@ func (self *Docker) List() (out []*Container, err error) {
         if containerState, err := self.inspectContainer(listContainer.ID); err != nil {
             break
         } else {
-            out = append(out, containerState)
+            out = append(out, *containerState)
         }
     }
 
@@ -237,6 +237,35 @@ func (self *Docker) containerEvent(dockerEvent *docker.APIEvents) (event Contain
     return
 }
 
+func (self *Docker) dockerEvent(dockerEvent *docker.APIEvents, out *ContainerEvent) error {
+	switch dockerEvent.Status {
+	case "EOF":
+		// XXX: how is this different to close()'ing the chan?
+		log.Printf("%v.Subscribe: EOF\n", self)
+		break
+
+	// container events
+	case "attach", "commit", "copy", "create", "destroy", "die", "exec_create", "exec_start", "export", "kill", "oom", "pause", "rename", "resize", "restart", "start", "stop", "top", "unpause":
+		if containerEvent, err := self.containerEvent(dockerEvent); err != nil {
+			log.Printf("%v.Subscribe %v:%v: containerEvent: %v\n", self, dockerEvent.Status, dockerEvent.ID, err)
+
+		} else {
+			// log.Printf("%v.Subscribe %v:%v: %#v\n", self, dockerEvent.Status, dockerEvent.ID, containerEvent)
+
+			*out = containerEvent
+		}
+
+	// image events
+	case "delete", "import", "pull", "push", "tag", "untag":
+		log.Printf("%v.Subscribe %v:%v: image event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
+
+	default:
+		log.Printf("%v.Subscribe %v:%v: unknown event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
+	}
+
+	return nil
+}
+
 /*
  * Subscribe to container events.
  */
@@ -258,46 +287,34 @@ func (self *Docker) subscribe(listener chan *docker.APIEvents, out chan Containe
     defer close(out)
 
     for dockerEvent := range listener {
-        switch dockerEvent.Status {
-        case "EOF":
-            // XXX: how is this different to close()'ing the chan?
-            log.Printf("%v.Subscribe: EOF\n", self)
-            break
+		var containerEvent ContainerEvent
 
-        // container events
-        case "attach", "commit", "copy", "create", "destroy", "die", "exec_create", "exec_start", "export", "kill", "oom", "pause", "rename", "resize", "restart", "start", "stop", "top", "unpause":
-            if containerEvent, err := self.containerEvent(dockerEvent); err != nil {
-                log.Printf("%v.Subscribe %v:%v: containerEvent: %v\n", self, dockerEvent.Status, dockerEvent.ID, err)
-
-            } else {
-                // log.Printf("%v.Subscribe %v:%v: %#v\n", self, dockerEvent.Status, dockerEvent.ID, containerEvent)
-
-                out <- containerEvent
-            }
-
-        // image events
-        case "delete", "import", "pull", "push", "tag", "untag":
-            log.Printf("%v.Subscribe %v:%v: image event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
-
-        default:
-            log.Printf("%v.Subscribe %v:%v: unknown event: ignore\n", self, dockerEvent.Status, dockerEvent.ID)
-        }
+		if err := self.dockerEvent(dockerEvent, &containerEvent); err != nil {
+			return
+		} else {
+			out <- containerEvent
+		}
     }
 }
 
 /*
- * Combine List() and Subscribe() to synchronize to docker container states.
+ * Combine List() and Subscribe() to synchronize docker container states.
  *
- * Gives initial "sync" events for all containers, and then normal events for changes.
+ * Sends updated Containers maps on every container event.
  */
-func (self *Docker) Sync() (chan ContainerEvent, error) {
-    out := make(chan ContainerEvent)
+func (self *Docker) Watch() (chan Containers, error) {
+	containers := make(Containers)
+    out := make(chan Containers)
 
-    // list
-    containers, err := self.List()
+    // initial state
+    containerList, err := self.List()
     if err != nil {
         return nil, err
     }
+
+	for _, container := range containerList {
+		containers[container.ID] = container
+	}
 
     // subscribe events
     listener := make(chan *docker.APIEvents)
@@ -306,22 +323,26 @@ func (self *Docker) Sync() (chan ContainerEvent, error) {
         return nil, fmt.Errorf("docker:Client.AddEventListener: %v", err)
     }
 
-    go self.sync(containers, listener, out)
+    go self.watch(containers, listener, out)
 
     return out, nil
 }
 
-func (self *Docker) sync(listContainers []*Container, listener chan *docker.APIEvents, out chan ContainerEvent) {
-    // generate sync events
-    for _, container := range listContainers {
-        out <- ContainerEvent{
-            ID:         container.ID,
-            Status:     "sync",
-            Running:    container.Running,
-            State:      container,
-        }
-    }
+func (self *Docker) watch(containers Containers, listener chan *docker.APIEvents, out chan Containers) {
+	defer close(out)
 
-    // keep going with events until they end
-    self.subscribe(listener, out)
+	out <- containers
+
+    for dockerEvent := range listener {
+		var containerEvent ContainerEvent
+
+		if err := self.dockerEvent(dockerEvent, &containerEvent); err != nil {
+			return
+		} else {
+			containers = containers.clone()
+			containers.update(containerEvent)
+
+			out <- containers
+		}
+	}
 }
