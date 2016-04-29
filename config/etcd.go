@@ -331,6 +331,7 @@ func (etcd *EtcdSource) writer() {
 func (etcd *EtcdSource) Write(nodes map[string]Node) error {
 	if etcd.writeChan == nil {
 		etcd.writeChan = make(chan map[string]Node)
+		etcd.flushChan = make(chan error)
 
 		go etcd.writer()
 	}
