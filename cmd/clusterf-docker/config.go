@@ -5,11 +5,12 @@ import (
     "github.com/qmsk/clusterf/docker"
     "fmt"
     "strings"
-    "log"
 )
 
-// Translate a docker container to a service config
-func configContainer (container *docker.Container) (configs []config.Config) {
+// Translate a docker container into service configs
+func configContainer(updateConfig *config.Config, container docker.Container) error {
+	backendName := container.ID
+
     // map ports
     containerPorts := make(map[string]docker.Port)
 
@@ -19,13 +20,10 @@ func configContainer (container *docker.Container) (configs []config.Config) {
 
     // services
     for _, serviceName := range strings.Fields(container.Labels["net.qmsk.clusterf.service"]) {
-        configBackend := config.ConfigServiceBackend{
-            ServiceName: serviceName,
-            BackendName: container.ID,
-        }
+        var backend config.ServiceBackend
 
         if container.IPv4 != nil {
-            configBackend.Backend.IPv4 = container.IPv4.String()
+            backend.IPv4 = container.IPv4.String()
         }
 
         // find potential ports for service by label
@@ -48,23 +46,48 @@ func configContainer (container *docker.Container) (configs []config.Config) {
 
             port, portFound := containerPorts[fmt.Sprintf("%s:%s", portLabel.proto, portName)]
             if !portFound {
-                log.Printf("configContainer %v: service %v port %v is not exposed\n", container, serviceName, portName)
-                continue
+				// ignore
+                fmt.Printf("configContainer %v: service %v port %v is not exposed\n", container, serviceName, portName)
+				continue
             }
 
             // configure
             switch port.Proto {
             case "tcp":
-                configBackend.Backend.TCP = port.Port
+                backend.TCP = port.Port
             case "udp":
-                configBackend.Backend.UDP = port.Port
+                backend.UDP = port.Port
             }
         }
 
-        if configBackend.Backend.TCP != 0 || configBackend.Backend.UDP != 0 {
-            configs = append(configs, configBackend)
-        }
+        if backend.TCP == 0 && backend.UDP == 0 {
+			continue
+		}
+
+		if service, exists := updateConfig.Services[serviceName]; exists {
+			service.Backends[backendName] = backend
+		} else {
+			updateConfig.Services[serviceName] = config.Service{
+				Backends: map[string]config.ServiceBackend{
+					backendName: backend,
+				},
+			}
+		}
     }
 
-    return
+    return nil
+}
+
+func configContainers (containers docker.Containers) (config.Config, error) {
+	var config = config.Config{
+		Services:	make(map[string]config.Service),
+	}
+
+	for _, container := range containers {
+		if err := configContainer(&config, container); err != nil {
+			return config, err
+		}
+	}
+
+	return config, nil
 }
