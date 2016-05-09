@@ -70,8 +70,12 @@ func (route *Route) config(configRoute config.Route) error {
 		route.Gateway = nil
 	} else if ip := net.ParseIP(configRoute.Gateway); ip == nil {
 		return fmt.Errorf("Invalid Gateway: %s", configRoute.Gateway)
+	} else if ip4 := ip.To4(); ip4 != nil {
+		// normalize from v4-in-v6 form
+		route.Gateway = ip4
 	} else {
 		route.Gateway = ip
+
 	}
 
 	if configRoute.IPVSMethod == "" {
