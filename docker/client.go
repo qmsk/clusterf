@@ -84,6 +84,31 @@ func (client *Client) getContainers() (Containers, error) {
 	return containers, nil
 }
 
+func (client *Client) getNetwork(id string) (*docker.Network, error) {
+	if network, err := client.dockerClient.NetworkInfo(id); err != nil {
+		return network, nil
+	} else if _, ok := err.(*docker.NoSuchNetwork); ok {
+		return nil, nil
+	} else {
+		return nil, err
+	}
+}
+
+func (client *Client) getNetworks() (Networks, error) {
+	var networks = make(Networks)
+
+	listNetworks, err := client.dockerClient.ListNetworks()
+	if err != nil {
+		return nil, fmt.Errorf("docker:Client.ListNetworks: %v", err)
+	}
+
+	for _, network := range listNetworks {
+		networks.list(network)
+	}
+
+	return networks, nil
+}
+
 func (client *Client) getState() (State, error) {
 	var state State
 
@@ -107,6 +132,12 @@ func (client *Client) getState() (State, error) {
 		state.Containers = containers
 	}
 
+	if networks, err := client.getNetworks(); err != nil {
+		return state, err
+	} else {
+		state.Networks = networks
+	}
+
 	return state, nil
 }
 
@@ -127,6 +158,24 @@ func (client *Client) updateState(state *State, dockerEvent *docker.APIEvents) e
 		}
 
 		state.updateContainers(containerEvent)
+
+		return nil
+
+	case "network":
+		var networkEvent = networkEvent{
+			ID:			dockerEvent.Actor.ID,
+			Action:		dockerEvent.Action,
+		}
+
+		if network, err := client.getNetwork(dockerEvent.Actor.ID); err != nil {
+			return err
+		} else if network != nil {
+			networkEvent.Network = network
+		} else {
+			// gone
+		}
+
+		state.updateNetworks(networkEvent)
 
 		return nil
 

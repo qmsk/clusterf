@@ -5,8 +5,8 @@ type State struct {
     Name		string
     Version		string
 
-	// Running containers
 	Containers	Containers
+	Networks	Networks
 }
 
 func (state *State) updateContainers(event containerEvent) {
@@ -14,4 +14,11 @@ func (state *State) updateContainers(event containerEvent) {
 	containers.update(event)
 
 	state.Containers = containers
+}
+
+func (state *State) updateNetworks(event networkEvent) {
+	networks := state.Networks.clone()
+	networks.update(event)
+
+	state.Networks = networks
 }
