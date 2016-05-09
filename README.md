@@ -89,31 +89,32 @@ The ports must be EXPOSE'd on the container, but do not necessarily need to be p
 
 ### Local configuration
 
-The `clusterf-ipvs` daemon supports a local filesystem `-config-path=` configuration tree which is loaded in addition to the configuration in etcd.
+The `clusterf-ipvs --config-source=file:///...` flag can be used to load configuration from a local filesystem tree, which is merged with the configuration in etcd. The structure of the configuration nodes is the same as in etcd.
+
+This can be used to customize the set of services/routes per node.
 
 ### Forwarding configuration
 
 The forwarding method for IPVS destinations can be configured in aggregate for different sets of backends via `/clusterf/routes/...`, using IPv4 address *prefix* information to represent the network topology:
 
     $ etcdctl get /clusterf/routes/test3
-    {"Prefix4":"10.3.107.0/24","IpvsMethod":"masq"}
+    {"Prefix":"10.3.107.0/24","IPVSMethod":"masq"}
 
 This means that any backends configured under `10.3.107.0/24` will be configured with an IPVS *masq* forwarding-method.
-
 
 ### Routed backends
 
 The `clusterf` code additionally supports the use of *routed backends*, to redirect traffic to a set of backends via some intermediate *gateway*:
 
-    {"Prefix4":"10.6.107.0/24",Gateway4":"10.107.107.6","IpvsMethod":"droute"}
+    {"Prefix":"10.6.107.0/24",Gateway":"10.107.107.6","IPVSMethod":"droute"}
 
 The backend's IPVS dest will be added using the given *gateway* address (retaining the service's frontend port) in place of the dest's *host:port* address.
 
 This feature enables the separaration of the IPVS traffic handling into two tiers: a scaleable and fault-tolerant stateless frontend tier using IPVS `droute` forwarding, plus a simple-to-configure stateful intermediate tier using IPVS `masq` forwarding.
 
-The `-filter-etcd-routes` can be used to override any routes in etcd on the intermediate tier, which can be used to limit IPVS destinations to local backends only.
+The `clusterf-ipvs --filter-routes=file://` flag can be used to override any routes in etcd on the intermediate tier, which can be used to limit IPVS destinations to local backends only.
 
-The `-advertise-route-*` flags can be used to advertise a route for local backends into etcd for the frontend tier.
+The `clusterf-docker --route-*` flags can be used to advertise routes for local docker networks into etcd for use by the frontend IPVS tier.
 
 ### Weighted backends
 
@@ -129,15 +130,9 @@ The merging is based on the backend weight. The IPVS weight of the merged destin
 
 ## Known issues
 
-*   Dead service backends are not cleaned up.
-    The `clusterf-docker` daemon will remove any containers that are stopped, but a dead `clusterf-docker` daemon or docker host will result in
-    ghost backends in etcd.
-*   Route updates are not propagated to backends.
-    Adding/Updating/Removing a route will not be reflected in the IPVS state until the service backends are updated.
-*   The `clusterf-docker` daemon is limited in terms of the policy configuration available.
-    It needs support for different network topologies, such as Docker's traditional "published" NAT ports.
-*   Hairpinning to allow access to local backends from docker containers on the same host requires some work to deal with asymmetric routing on the docker host bridge.
-*   IPv6 configuration is partially supported in the `clusterf-ipvs` code, but untested. The `clusterf-docker` code is lacking IPv6 configuration support.
+*   The `clusterf-docker` daemon is limited in terms of the policy configuration available. It assumes the docker networks are globally addressed and routable from the frontend.
+*   `{"IPVSMethod":"masq"}` does not work with hairpinning from docker containers to backends running on the same host. This would require workarounds to deal with the asymmetric routing across the docker host bridge.
+*   IPv6 configuration is supported, but untested. IPv4 -> IPv6 frontend/backends are in theory supported, but untested and pending IPVS support for the kernel interface.
 
 ## Future ideas
 
