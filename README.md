@@ -122,6 +122,8 @@ Each backend can define its own weight, which can be updated at runtime. Backend
 
 A backend weight of zero will prevent new connections being scheduled for the backend, allowing existing connections to continue.
 
+This is used in `clusterf-docker` for graceful container shutdowns. Containers going through the *kill* -> *die* -> *stop* lifecycle will be marked as not running and have their weight set to zero while stopping, before being removed. See issue #5 for an example.
+
 ### Backend merging
 
 Overlapping backends are merged. This will happen if multiple backends for a given service resolve to the same IPVS host:port, typically as a result of a route aggregating a set of backends to an intermediate frontend.
