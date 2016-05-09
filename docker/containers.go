@@ -76,23 +76,34 @@ func (containers Containers) clone() Containers {
 	return copy
 }
 
+func (containers Containers) list(container *docker.Container) {
+	if container.State.Running {
+		log.Printf("docker:Containers.list %v: up", container.ID)
+	} else {
+		log.Printf("docker:Containers.list %v: down", container.ID)
+	}
+
+	containers[container.ID] = container
+}
+
 func (containers Containers) update(event containerEvent) {
 	state := event.State()
 
 	if !state.Exists {
-		log.Printf("docker:containerEvent %v -> %v: remove", event, state)
+		log.Printf("docker:Containers.update %v -> %v: remove", event, state)
 
 		delete(containers, event.ID)
 
 	} else {
 		if !state.Running {
-			log.Printf("docker:containerEvent %v -> %v: down", event, state)
-
 			// override
 			event.Container.State.Running = false
+		}
 
+		if event.Container.State.Running {
+			log.Printf("docker:Containers.update %v -> %v: down", event, state)
 		} else {
-			log.Printf("docker:containerEvent %v -> %v: up", event, state)
+			log.Printf("docker:Containers.update %v -> %v: up", event, state)
 		}
 
 		containers[event.ID] = event.Container

@@ -75,7 +75,7 @@ func (client *Client) getContainers() (Containers, error) {
 		if container, err := client.getContainer(listContainer.ID); err != nil {
 			return containers, err
 		} else if container != nil {
-			containers[container.ID] = container
+			containers.list(container)
 		} else {
 			// disappeared while listing
 		}
@@ -118,7 +118,7 @@ func (client *Client) updateState(state *State, dockerEvent *docker.APIEvents) e
 			Action:		dockerEvent.Action,
 		}
 
-		if container, err := client.dockerClient.InspectContainer(dockerEvent.Actor.ID); err != nil {
+		if container, err := client.getContainer(dockerEvent.Actor.ID); err != nil {
 			return err
 		} else if container != nil {
 			containerEvent.Container = container
