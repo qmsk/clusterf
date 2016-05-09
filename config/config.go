@@ -92,18 +92,17 @@ func (service *Service) removeBackends(source Source) {
 type Route struct {
 	Meta			`json:"-"`
 
-    // IPv4 prefix to match
+    // IPv4/IPv6 prefix to match
     // empty for default match
-    Prefix4     string
+    Prefix      string
 
-    // Override backend IPv4 address for ipvs
-    Gateway4    string
+    // Override backend IPv4/IPv6 address for ipvs
+    Gateway     string
 
-    // Configure IPVS fwd-method to use for destination
+	// Configure IPVS fwd-method for destination:
     //  droute tunnel masq
-    // Filter out backend if set to
-    //  filter
-    IpvsMethod  string
+	// Filter out backend if set to empty string.
+	IPVSMethod  string
 }
 
 // Top-level config object

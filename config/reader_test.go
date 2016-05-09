@@ -86,7 +86,7 @@ var testReaderSources = map[string]*testReaderSource{
             Node{Path:"services/test2/backends/test1", Value: "{\"ipv4\": \"192.168.2.1\", \"tcp\": 8080}"},
             Node{Path:"services", IsDir:true, Remove: true},
 			Node{Path:"routes", IsDir:true},
-			Node{Path:"routes/test2", Value: "{\"Prefix4\": \"192.168.2.0/24\", \"IpvsMethod\": \"droute\"}"},
+			Node{Path:"routes/test2", Value: "{\"Prefix\": \"192.168.2.0/24\", \"IpvsMethod\": \"droute\"}"},
 		},
 	},
 }
@@ -133,7 +133,7 @@ var testReaderConfig Config = Config{
 			IpvsMethod: "droute",
 		}, */
 		"test2": Route{
-			Prefix4:	"192.168.2.0/24",
+			Prefix:	    "192.168.2.0/24",
 			IpvsMethod: "droute",
 		},
 	},
