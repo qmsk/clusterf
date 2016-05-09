@@ -122,7 +122,7 @@ Each backend can define its own weight, which can be updated at runtime. Backend
 
 A backend weight of zero will prevent new connections being scheduled for the backend, allowing existing connections to continue.
 
-This is used in `clusterf-docker` for graceful container shutdowns. Containers going through the *kill* -> *die* -> *stop* lifecycle will be marked as not running and have their weight set to zero while stopping, before being removed. See issue #5 for an example.
+This is used in `clusterf-docker` for graceful container shutdowns. Containers going through the *kill* -> *die* -> *stop* lifecycle will be marked as not running and have their weight set to zero while stopping, before being removed. See [Issue #5](https://github.com/qmsk/clusterf/issues/5) for an example.
 
 ### Backend merging
 
@@ -140,6 +140,7 @@ The merging is based on the backend weight. The IPVS weight of the merged destin
 
 *   Implement a docker networking extension to configure the public VIP directly within the docker container.
     Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
+*   Implement health-checking for service backends within `clusterf-ipvs`. Currently we rely on `clusterf-docker` removing backends for failed docker containers, and etcd TTL expiry if the docker host fails. See [Issue #1](https://github.com/qmsk/clusterf/issues/1).
 
 ## Acknowledgments
 
