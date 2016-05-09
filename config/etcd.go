@@ -71,6 +71,22 @@ func (options EtcdOptions) Open() (*EtcdSource, error) {
     return &etcdSource, nil
 }
 
+// Undo etcd/client:ClusterError fuckery
+// https://github.com/coreos/etcd/pull/4503
+func fixupClusterError(err error) error {
+	if clusterError, ok := err.(*client.ClusterError); ok {
+		var errs []string
+
+		for _, clusterErr := range clusterError.Errors {
+			errs = append(errs, clusterErr.Error())
+		}
+
+		return fmt.Errorf("%s: %s", clusterError.Error(), strings.Join(errs, "; "))
+	} else {
+		return err
+	}
+}
+
 type EtcdSource struct {
     options		EtcdOptions
 
@@ -100,7 +116,7 @@ func (etcd *EtcdSource) path(parts ...string) string {
  */
 func (etcd *EtcdSource) Init() error {
 	if response, err := etcd.keysAPI.Set(context.Background(), etcd.path(), "", &client.SetOptions{Dir: true}); err != nil {
-        return err
+        return fixupClusterError(err)
     } else {
         etcd.syncIndex = response.Node.CreatedIndex
     }
@@ -124,7 +140,7 @@ func (etcd *EtcdSource) Scan() ([]Node, error) {
 		// create directory instead
 		return nil, etcd.Init()
 	} else {
-        return nil, err
+        return nil, fixupClusterError(err)
     }
 
     if response.Node.Dir != true {
@@ -201,6 +217,7 @@ func (etcd *EtcdSource) watch(watchChan chan Node) {
 
     for {
 		if response, err := watcher.Next(context.Background()); err != nil {
+			err = fixupClusterError(err)
             log.Printf("config:EtcdSource.watch: %s\n", err)
 			return
 		} else if node, err := etcd.syncNode(response.Action, response.Node); err != nil {
@@ -241,7 +258,7 @@ func (etcd *EtcdSource) refresh(node Node) error {
 	}
 
 	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), node.Value, &opts); err != nil {
-		return err
+		return fixupClusterError(err)
 	} else {
 		return nil
 	}
@@ -254,7 +271,7 @@ func (etcd *EtcdSource) set(node Node) error {
 	}
 
 	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), node.Value, &opts); err != nil {
-		return err
+		return fixupClusterError(err)
 	} else {
 		return nil
 	}
@@ -270,7 +287,7 @@ func (etcd *EtcdSource) remove(node Node) error {
 	}
 
 	if _, err := etcd.keysAPI.Delete(context.Background(), etcd.path(node.Path), &opts); err != nil {
-		return err
+		return fixupClusterError(err)
 	} else {
 		return nil
 	}
