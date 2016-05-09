@@ -8,9 +8,9 @@ import (
 
 type ReaderOptions struct {
 	SourceOptions
-	SourceURLs []string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceURLs []string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>" description:"Read and merge config from sources"`
 
-	FilterRoutes string `long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
+	FilterRoutes string `long:"filter-routes" value-name:"URL-PREFIX" description:"Only apply routes from matching --config-source"`
 }
 
 // Return a new Reader with the given config URLs opened

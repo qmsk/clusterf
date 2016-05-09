@@ -10,8 +10,8 @@ import (
 )
 
 var Options struct {
-	Listen			bool	`long:"listen" help:"Listen for updates"`
-	JSON			bool	`long:"json" help:"Output JSON"`
+	Listen			bool	`long:"listen" description:"Listen for updates"`
+	JSON			bool	`long:"json" description:"Output as JSON"`
 
 	ConfigReader	config.ReaderOptions	`group:"Config Reader"`
 }

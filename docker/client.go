@@ -7,7 +7,7 @@ import (
 )
 
 type Options struct {
-	Endpoint string `long:"docker-endpoint"`
+	Endpoint string `long:"docker-endpoint" value-name:"(unix|tcp)://PATH" description:"Connect to docker daemon on given endpoint. Default from environment"`
 }
 
 type Client struct {

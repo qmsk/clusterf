@@ -11,10 +11,10 @@ import (
 )
 
 type EtcdOptions struct {
-	Scheme string        `long:"etcd-scheme" value-name:"http|https" default:"http"`
-	Hosts  []string      `long:"etcd-host" value-name:"HOST:PORT"`
-	Prefix string        `long:"etcd-prefix" value-name:"/PATH" default:"/clusterf"`
-	TTL    time.Duration `long:"etcd-ttl" default:"10s"`
+	Scheme string        `long:"etcd-scheme" value-name:"http|https" default:"http" description:"Set default scheme for etcd:// URLs"`
+	Hosts  []string      `long:"etcd-host" value-name:"HOST:PORT" description:"Include hosts"`
+	Prefix string        `long:"etcd-prefix" value-name:"/PATH" default:"/clusterf" description:"Namespace all keys under given path"`
+	TTL    time.Duration `long:"etcd-ttl" value-name:"DURATION" default:"10s" description:"Write values with given TTL, and refresh at half of that"`
 }
 
 func (options EtcdOptions) OpenURL(url *url.URL) (*EtcdSource, error) {

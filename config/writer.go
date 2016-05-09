@@ -6,7 +6,7 @@ import (
 
 type WriterOptions struct {
 	SourceOptions
-	SourceURL string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceURL string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>" description:"Write to given source"`
 }
 
 func (options WriterOptions) Writer() (*Writer, error) {
