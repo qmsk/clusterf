@@ -55,9 +55,9 @@ func outputConfig (config config.Config) {
 	} else {
 		fmt.Printf("Routes:\n")
 		for routeName, route := range config.Routes {
-			fmt.Printf("\t%s: %v %v", routeName, route.IpvsMethod, route.Prefix4)
-			if route.Gateway4 != "" {
-				fmt.Printf(" gateway %v", route.Gateway4)
+			fmt.Printf("\t%s: %v %v", routeName, route.IPVSMethod, route.Prefix)
+			if route.Gateway != "" {
+				fmt.Printf(" gateway %v", route.Gateway)
 			}
 			fmt.Printf("\n")
 		}
