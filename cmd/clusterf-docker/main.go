@@ -31,13 +31,13 @@ func main() {
         log.Printf("docker:Docker.Open: %v\n", docker)
     }
 
-    if containersChan, err := docker.Watch(); err != nil {
-        log.Fatalf("docker:Docker.Sync: %v\n", err)
+    if dockerChan, err := docker.Listen(); err != nil {
+        log.Fatalf("docker:Docker.Listen: %v\n", err)
     } else {
-        log.Printf("docker:Docker.Sync...\n")
+        log.Printf("docker:Docker.Listen...\n")
 
-        for containers := range containersChan {
-			if config, err := configContainers(containers); err != nil {
+        for dockerState := range dockerChan {
+			if config, err := makeConfig(dockerState); err != nil {
 				log.Fatalf("configContainers: %v\n", err)
 			} else if err := configWriter.Write(config); err != nil {
 				log.Fatalf("config:Writer.Write: %v\n", err)

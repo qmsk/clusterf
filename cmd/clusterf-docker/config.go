@@ -2,29 +2,26 @@ package main
 
 import (
     "github.com/qmsk/clusterf/config"
-    "github.com/qmsk/clusterf/docker"
+	docker "github.com/qmsk/clusterf/docker" // XXX: mixing two APIs sucks
+    dockerclient "github.com/fsouza/go-dockerclient"
     "fmt"
+	"log"
     "strings"
 )
 
 // Translate a docker container into service configs
-func configContainer(updateConfig *config.Config, container docker.Container) error {
+func configContainer(updateConfig *config.Config, container *dockerclient.Container) error {
+	labels := container.Config.Labels
+    exposedPorts := container.Config.ExposedPorts
+
+    // service backends
 	backendName := container.ID
 
-    // map ports
-    containerPorts := make(map[string]docker.Port)
-
-    for _, port := range container.Ports {
-        containerPorts[fmt.Sprintf("%s:%d", port.Proto, port.Port)] = port
-    }
-
-    // services
-    for _, serviceName := range strings.Fields(container.Labels["net.qmsk.clusterf.service"]) {
+    for _, serviceName := range strings.Fields(labels["net.qmsk.clusterf.service"]) {
         var backend config.ServiceBackend
 
-        if container.IPv4 != nil {
-            backend.IPv4 = container.IPv4.String()
-        }
+        backend.IPv4 = container.NetworkSettings.IPAddress
+        backend.IPv6 = container.NetworkSettings.GlobalIPv6Address
 
         // find potential ports for service by label
         portLabels := []struct{
@@ -39,51 +36,74 @@ func configContainer(updateConfig *config.Config, container docker.Container) er
 
         for _, portLabel := range portLabels {
             // lookup exposed docker.Port
-            portName, labelFound := container.Labels[portLabel.label]
+            portName, labelFound := labels[portLabel.label]
             if !labelFound {
                 continue
             }
 
-            port, portFound := containerPorts[fmt.Sprintf("%s:%s", portLabel.proto, portName)]
+			dockerPort := dockerclient.Port(fmt.Sprintf("%s/%s", portName, portLabel.proto))
+
+			// check that the port is exposed
+            _, portFound := exposedPorts[dockerPort]
             if !portFound {
 				// ignore
-                fmt.Printf("configContainer %v: service %v port %v is not exposed\n", container, serviceName, portName)
+                log.Printf("configContainer %v: service %v %s port %s is not exposed\n", container.ID, serviceName, portLabel.proto, dockerPort)
 				continue
             }
 
+			var port uint16
+
+			if _, err := fmt.Sscanf(dockerPort.Port(), "%d", &port); err != nil {
+				log.Printf("configContainer %v: service %v %v port invalid: %#v", container.ID, serviceName, portLabel.proto, dockerPort.Port())
+				continue
+			}
+
             // configure
-            switch port.Proto {
+            switch dockerPort.Proto() {
             case "tcp":
-                backend.TCP = port.Port
+                backend.TCP = port
             case "udp":
-                backend.UDP = port.Port
+                backend.UDP = port
             }
+
+			// state
+			if container.State.Running {
+				backend.Weight = config.ServiceBackendWeight
+			} else {
+				backend.Weight = 0
+			}
         }
+
+		if backend.IPv4 == "" && backend.IPv6 == "" {
+			continue
+		}
 
         if backend.TCP == 0 && backend.UDP == 0 {
 			continue
 		}
 
-		if service, exists := updateConfig.Services[serviceName]; exists {
-			service.Backends[backendName] = backend
-		} else {
+		if service, serviceExists := updateConfig.Services[serviceName]; !serviceExists {
 			updateConfig.Services[serviceName] = config.Service{
 				Backends: map[string]config.ServiceBackend{
 					backendName: backend,
 				},
 			}
+		} else if serviceBackend, backendExists := service.Backends[backendName]; !backendExists {
+			service.Backends[backendName] = backend
+		} else {
+			log.Printf("configContainer %v: service %v backend %v collision: %v", serviceName, backendName, serviceBackend)
 		}
     }
 
     return nil
 }
 
-func configContainers (containers docker.Containers) (config.Config, error) {
+func makeConfig (dockerState docker.State) (config.Config, error) {
 	var config = config.Config{
 		Services:	make(map[string]config.Service),
 	}
 
-	for _, container := range containers {
+	for _, container := range dockerState.Containers {
 		if err := configContainer(&config, container); err != nil {
 			return config, err
 		}
