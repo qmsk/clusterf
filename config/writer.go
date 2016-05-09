@@ -48,6 +48,6 @@ func (writer *Writer) Write(config Config) error {
 }
 
 // Stop publishing
-func (writer *Writer) Close() error {
+func (writer *Writer) Flush() error {
 	return writer.source.Flush()
 }
