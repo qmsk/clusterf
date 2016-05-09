@@ -134,7 +134,7 @@ var testReaderConfig Config = Config{
 		}, */
 		"test2": Route{
 			Prefix:     "192.168.2.0/24",
-			IpvsMethod: "droute",
+			IPVSMethod: "droute",
 		},
 	},
 }
