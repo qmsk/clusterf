@@ -65,23 +65,19 @@ func configServiceBackend (ipvsService ipvs.Service, backend config.ServiceBacke
     if route == nil {
 		// as-is
         return &ipvsDest, nil
-    } else if route.ipvs_filter {
+    } else if route.IPVSMethod == nil {
         // ignore
         return nil, nil
+    } else {
+        ipvsDest.FwdMethod = *route.IPVSMethod
     }
 
-    if route.ipvs_fwdMethod != nil {
-        ipvsDest.FwdMethod = *route.ipvs_fwdMethod
-    }
-
-    switch ipvsService.Af {
-    case syscall.AF_INET:
-        if route.Gateway4 != nil {
-            // chaining
-            ipvsDest.Addr = route.Gateway4
-            ipvsDest.Port = ipvsService.Port
-        }
-    }
+	// IPVS chaning to next frontend
+	if route.Gateway != nil {
+		// TODO: mixed-family routes
+		ipvsDest.Addr = route.Gateway
+		ipvsDest.Port = ipvsService.Port
+	}
 
 	return &ipvsDest, nil
 }

@@ -12,13 +12,12 @@ var testIpvsFwdMethodMasq = ipvs.FwdMethod(ipvs.IP_VS_CONN_F_MASQ)
 var testIpvsFwdMethodDroute = ipvs.FwdMethod(ipvs.IP_VS_CONN_F_DROUTE)
 var testRoutes = Routes{
 	"test1": Route{
-		Prefix4:		&net.IPNet{net.IP{10,1,0,0}, net.IPMask{255,255,255,0}},
-		Gateway4:		nil,
-		ipvs_fwdMethod:	&testIpvsFwdMethodMasq,
+		Prefix:			&net.IPNet{net.IP{10,1,0,0}, net.IPMask{255,255,255,0}},
+		Gateway:		nil,
+		IPVSMethod:		&testIpvsFwdMethodMasq,
 	},
 	"internal": Route{
-		Prefix4:		&net.IPNet{net.IP{10,0,0,0}, net.IPMask{255,0,0,0}},
-		ipvs_filter:	true,
+		Prefix:			&net.IPNet{net.IP{10,0,0,0}, net.IPMask{255,0,0,0}},
 	},
 }
 
@@ -26,8 +25,8 @@ var testRoutes = Routes{
 // Test multiple NewConfig for Routes from multiple config sources
 func TestConfigRoute(t *testing.T) {
 	routeConfig := map[string]config.Route{
-		"test1":	config.Route{Prefix4:"10.1.0.0/24", IpvsMethod:"masq"},
-		"internal":	config.Route{Prefix4:"10.0.0.0/8", IpvsMethod:"filter"},
+		"test1":	config.Route{Prefix:"10.1.0.0/24", IPVSMethod:"masq"},
+		"internal":	config.Route{Prefix:"10.0.0.0/8", IPVSMethod:""},
 	}
 
 	routes, err := configRoutes(routeConfig)

@@ -94,8 +94,8 @@ var testConfigServices = map[string]struct{
 			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
 		},
 		configRoutes: map[string]config.Route{
-			"test1": config.Route{Prefix4:"10.1.0.0/24", Gateway4:"10.255.0.1", IpvsMethod:"droute"},
-			"test2": config.Route{Prefix4:"10.2.0.0/24", Gateway4:"10.255.0.2", IpvsMethod:"droute"},
+			"test1": config.Route{Prefix:"10.1.0.0/24", Gateway:"10.255.0.1", IPVSMethod:"droute"},
+			"test2": config.Route{Prefix:"10.2.0.0/24", Gateway:"10.255.0.2", IPVSMethod:"droute"},
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{
@@ -199,7 +199,7 @@ var testConfigServices = map[string]struct{
 			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
 		},
 		configRoutes: map[string]config.Route{
-			"test1": config.Route{Prefix4:"10.1.0.0/24", Gateway4:"10.255.0.1", IpvsMethod:"droute"},
+			"test1": config.Route{Prefix:"10.1.0.0/24", Gateway:"10.255.0.1", IPVSMethod:"droute"},
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{

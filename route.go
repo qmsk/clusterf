@@ -49,43 +49,37 @@ func configRoutes(configRoutes map[string]config.Route) (Routes, error) {
 
 type Route struct {
     // default -> nil
-    Prefix4			*net.IPNet
+    Prefix			*net.IPNet
 
     // attributes
-    Gateway4        net.IP
-    ipvs_fwdMethod  *ipvs.FwdMethod
-    ipvs_filter     bool
+    Gateway         net.IP
+    IPVSMethod		*ipvs.FwdMethod // or nil
 }
 
 // Build new route state from config
 func (route *Route) config(configRoute config.Route) error {
-    if configRoute.Prefix4 == "" {
-        route.Prefix4 = nil // default
-    } else if _, prefix4, err := net.ParseCIDR(configRoute.Prefix4); err != nil {
-        return fmt.Errorf("Invalid Prefix4: %s", configRoute.Prefix4)
+    if configRoute.Prefix == "" {
+        route.Prefix = nil // default
+    } else if _, ipnet, err := net.ParseCIDR(configRoute.Prefix); err != nil {
+        return fmt.Errorf("Invalid Prefix: %s", configRoute.Prefix)
     } else {
-        route.Prefix4 = prefix4
+        route.Prefix = ipnet
     }
 
-    if configRoute.Gateway4 == "" {
-        route.Gateway4 = nil
-    } else if gateway4 := net.ParseIP(configRoute.Gateway4).To4(); gateway4 == nil {
-        return fmt.Errorf("Invalid Gateway4: %s", configRoute.Gateway4)
+    if configRoute.Gateway == "" {
+        route.Gateway = nil
+    } else if ip := net.ParseIP(configRoute.Gateway); ip == nil {
+        return fmt.Errorf("Invalid Gateway: %s", configRoute.Gateway)
     } else {
-        route.Gateway4 = gateway4
+        route.Gateway = ip
     }
 
-    if configRoute.IpvsMethod == "" {
-        route.ipvs_filter = false
-        route.ipvs_fwdMethod = nil
-    } else if configRoute.IpvsMethod == "filter" {
-        route.ipvs_filter = true
-        route.ipvs_fwdMethod = nil
-    } else if fwdMethod, err := ipvs.ParseFwdMethod(configRoute.IpvsMethod); err != nil {
+    if configRoute.IPVSMethod == "" {
+        route.IPVSMethod = nil
+    } else if fwdMethod, err := ipvs.ParseFwdMethod(configRoute.IPVSMethod); err != nil {
         return err
     } else {
-        route.ipvs_filter = false
-        route.ipvs_fwdMethod = &fwdMethod
+        route.IPVSMethod = &fwdMethod
     }
 
     return nil
@@ -96,16 +90,14 @@ func (route *Route) config(configRoute config.Route) error {
 // Returns true if matches, with the length of the matching prefix
 // Returns false otherwise
 func (route Route) match(ip net.IP) (match bool, length int) {
-    if ip4 := ip.To4(); ip4 == nil {
-
-    } else if route.Prefix4 == nil {
+    if route.Prefix == nil {
         // default match
         return true, 0
 
-    } else if !route.Prefix4.Contains(ip4) {
+    } else if !route.Prefix.Contains(ip) {
 
     } else {
-        prefixLength, _:= route.Prefix4.Mask.Size()
+        prefixLength, _:= route.Prefix.Mask.Size()
 
         return true, prefixLength
     }
