@@ -130,6 +130,12 @@ Overlapping backends are merged. This will happen if multiple backends for a giv
 
 The merging is based on the backend weight. The IPVS weight of the merged destination is calculated from the weights of all merged backends, and updated as backends are added/removed/reweighted.
 
+### Soft restart
+
+The `clusterf-ipvs` command will read the initial kernel IPVS configuration at startup, and only apply the necessary operations to update it to the current configuration. Restarting `clusterf-ipvs` should thus not affect active connections.
+
+You can also use `clusterf-ipvs --noop` to verify that the code and configuration behave as expected.
+
 ## Known issues
 
 *   The `clusterf-docker` daemon is limited in terms of the policy configuration available. It assumes the docker networks are globally addressed and routable from the frontend.
