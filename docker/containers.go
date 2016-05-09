@@ -12,14 +12,18 @@ type containerEvent struct {
 	Container	*docker.Container
 }
 
+func (event containerEvent) String() string {
+	return fmt.Sprintf("%s container %v", event.Action, event.ID)
+}
+
 type containerState struct {
 	Exists		bool
 	Running		bool
 	Status		string
 }
 
-func (event containerEvent) String() string {
-	return fmt.Sprintf("%s container %v", event.Action, event.ID)
+func (state containerState) String() string {
+	return state.Status
 }
 
 // Expected state for container from Action.
@@ -76,19 +80,19 @@ func (containers Containers) update(event containerEvent) {
 	state := event.State()
 
 	if !state.Exists {
-		log.Printf("docker:containerEvent %v -> %s: remove", event, state)
+		log.Printf("docker:containerEvent %v -> %v: remove", event, state)
 
 		delete(containers, event.ID)
 
 	} else {
 		if !state.Running {
-			log.Printf("docker:containerEvent %v -> %s: stopping", event, state)
+			log.Printf("docker:containerEvent %v -> %v: down", event, state)
 
 			// override
 			event.Container.State.Running = false
 
 		} else {
-			log.Printf("docker:containerEvent %v -> %s: running", event, state)
+			log.Printf("docker:containerEvent %v -> %v: up", event, state)
 		}
 
 		containers[event.ID] = event.Container
