@@ -218,13 +218,13 @@ func (etcd *EtcdSource) watch(watchChan chan Node) {
     for {
 		if response, err := watcher.Next(context.Background()); err != nil {
 			err = fixupClusterError(err)
-            log.Printf("config:EtcdSource.watch: %s", err)
+            log.Printf("config:EtcdSource.watch: %v", err)
 			return
 		} else if node, err := etcd.syncNode(response.Action, response.Node); err != nil {
 			log.Printf("config:EtcdSource.watch %#v: syncNode: %s", response, err)
 			return
 		} else {
-            log.Printf("config:EtcdSource.watch: %v", node)
+            log.Printf("config:EtcdSource.watch: %v %v", response.Action, node)
             watchChan <- node
         }
     }
