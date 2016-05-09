@@ -1,15 +1,15 @@
 package docker
 
 import (
-    "github.com/fsouza/go-dockerclient"
 	"fmt"
+	"github.com/fsouza/go-dockerclient"
 	"log"
 )
 
 type networkEvent struct {
-	ID			string
-	Action		string
-	Network		*docker.Network
+	ID      string
+	Action  string
+	Network *docker.Network
 }
 
 func (event networkEvent) String() string {
@@ -34,7 +34,7 @@ func (event networkEvent) State() networkState {
 }
 
 type networkState struct {
-	Exists		bool
+	Exists bool
 }
 
 type Networks map[string]*docker.Network

@@ -1,9 +1,9 @@
 package clusterf
 
 import (
-    "github.com/qmsk/clusterf/config"
 	"fmt"
-    "github.com/qmsk/clusterf/ipvs"
+	"github.com/qmsk/clusterf/config"
+	"github.com/qmsk/clusterf/ipvs"
 )
 
 type Services map[string]Service
@@ -14,8 +14,8 @@ func (services Services) get(ipvsService ipvs.Service) Service {
 		return service
 	} else {
 		service := Service{
-			Service:	ipvsService,
-			dests:		make(ServiceDests),
+			Service: ipvsService,
+			dests:   make(ServiceDests),
 		}
 
 		services[service.String()] = service
@@ -35,8 +35,8 @@ func (services Services) sync(ipvsService ipvs.Service, ipvsDests []ipvs.Dest) {
 
 func (services Services) config(ipvsService ipvs.Service, dests ServiceDests) {
 	services[ipvsService.String()] = Service{
-		Service:	ipvsService,
-		dests:		dests,
+		Service: ipvsService,
+		dests:   dests,
 	}
 }
 

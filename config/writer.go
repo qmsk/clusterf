@@ -6,12 +6,12 @@ import (
 
 type WriterOptions struct {
 	SourceOptions
-	SourceURL		string		`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceURL string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
 }
 
 func (options WriterOptions) Writer() (*Writer, error) {
 	writer := Writer{
-		options:		options,
+		options: options,
 	}
 
 	if err := writer.open(options.SourceURL); err != nil {
@@ -22,8 +22,8 @@ func (options WriterOptions) Writer() (*Writer, error) {
 }
 
 type Writer struct {
-	options		WriterOptions
-	source		writeSource
+	options WriterOptions
+	source  writeSource
 }
 
 func (writer *Writer) open(sourceURL string) error {

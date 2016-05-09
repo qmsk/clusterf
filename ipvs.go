@@ -1,23 +1,23 @@
 package clusterf
 
 import (
-    "github.com/qmsk/clusterf/config"
-    "fmt"
-    "github.com/qmsk/clusterf/ipvs"
-    "log"
-    "syscall"
+	"fmt"
+	"github.com/qmsk/clusterf/config"
+	"github.com/qmsk/clusterf/ipvs"
+	"log"
+	"syscall"
 )
 
 type IPVSOptions struct {
-	Debug			bool		`long:"ipvs-debug"`
+	Debug bool `long:"ipvs-debug"`
 
-	FwdMethod		ipvs.FwdMethod	`long:"ipvs-fwd-method" default:"masq"`
-	SchedName		string			`long:"ipvs-sched-name" default:"wlc"`
+	FwdMethod ipvs.FwdMethod `long:"ipvs-fwd-method" default:"masq"`
+	SchedName string         `long:"ipvs-sched-name" default:"wlc"`
 
-	Elide			bool			`long:"ipvs-elide" help:"Omit services with no backends"`
+	Elide bool `long:"ipvs-elide" help:"Omit services with no backends"`
 
-	Mock			bool			`long:"ipvs-mock" default:"false" help:"Do not connect to the kernel IPVS state"`
-	Noop			bool			`long:"ipvs-noop" default:"false" help:"Do not write to the kernel IPVS state"`
+	Mock bool `long:"ipvs-mock" default:"false" help:"Do not connect to the kernel IPVS state"`
+	Noop bool `long:"ipvs-noop" default:"false" help:"Do not write to the kernel IPVS state"`
 }
 
 func (options IPVSOptions) Open() (*IPVSDriver, error) {
@@ -32,42 +32,42 @@ func (options IPVSOptions) Open() (*IPVSDriver, error) {
 
 // Used to expand ServiceFrontend/Backend -> multiple ipvs.service/Dest
 type ipvsType struct {
-    Af          ipvs.Af
-    Protocol    ipvs.Protocol
+	Af       ipvs.Af
+	Protocol ipvs.Protocol
 }
 
-var ipvsTypes = []ipvsType {
-    { syscall.AF_INET,      syscall.IPPROTO_TCP },
-    { syscall.AF_INET6,     syscall.IPPROTO_TCP },
-    { syscall.AF_INET,      syscall.IPPROTO_UDP },
-    { syscall.AF_INET6,     syscall.IPPROTO_UDP },
+var ipvsTypes = []ipvsType{
+	{syscall.AF_INET, syscall.IPPROTO_TCP},
+	{syscall.AF_INET6, syscall.IPPROTO_TCP},
+	{syscall.AF_INET, syscall.IPPROTO_UDP},
+	{syscall.AF_INET6, syscall.IPPROTO_UDP},
 }
 
 // Running state
 type IPVSDriver struct {
-	options		IPVSOptions
-    readClient	*ipvs.Client
-	writeClient	*ipvs.Client
+	options     IPVSOptions
+	readClient  *ipvs.Client
+	writeClient *ipvs.Client
 
 	// running state
-	routes		Routes
-	services	Services
+	routes   Routes
+	services Services
 }
 
 func (driver *IPVSDriver) init(options IPVSOptions) error {
 	driver.options = options
 
-    if options.Mock {
+	if options.Mock {
 
-    } else if ipvsClient, err := ipvs.Open(); err != nil {
-        return err
-    } else {
+	} else if ipvsClient, err := ipvs.Open(); err != nil {
+		return err
+	} else {
 		if options.Debug {
 			ipvsClient.SetDebug()
 		}
 
-        driver.readClient = ipvsClient
-    }
+		driver.readClient = ipvsClient
+	}
 
 	if options.Noop {
 
@@ -75,16 +75,15 @@ func (driver *IPVSDriver) init(options IPVSOptions) error {
 		driver.writeClient = driver.readClient
 	}
 
+	if driver.readClient == nil {
+		// mock'd
+	} else if info, err := driver.readClient.GetInfo(); err != nil {
+		return err
+	} else {
+		log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
+	}
 
-    if driver.readClient == nil {
-        // mock'd
-    } else if info, err := driver.readClient.GetInfo(); err != nil {
-        return err
-    } else {
-        log.Printf("ipvs.GetInfo: version=%s, conn_tab_size=%d\n", info.Version, info.ConnTabSize)
-    }
-
-    return nil
+	return nil
 }
 
 // Reset running state in kernel

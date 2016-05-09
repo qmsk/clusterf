@@ -6,13 +6,13 @@ import (
 )
 
 type SourceOptions struct {
-	Etcd		EtcdOptions	`group:"Config etcd://"`
+	Etcd EtcdOptions `group:"Config etcd://"`
 }
 
 // A single Config may contain Nodes from different Sources
 type Source interface {
-    // uniquely identifying
-    String()    string
+	// uniquely identifying
+	String() string
 }
 
 func (options SourceOptions) openURL(sourceURL string) (Source, error) {

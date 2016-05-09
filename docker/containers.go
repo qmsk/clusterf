@@ -1,15 +1,15 @@
 package docker
 
 import (
-    "github.com/fsouza/go-dockerclient"
 	"fmt"
+	"github.com/fsouza/go-dockerclient"
 	"log"
 )
 
 type containerEvent struct {
-	ID			string
-	Action		string
-	Container	*docker.Container
+	ID        string
+	Action    string
+	Container *docker.Container
 }
 
 func (event containerEvent) String() string {
@@ -17,9 +17,9 @@ func (event containerEvent) String() string {
 }
 
 type containerState struct {
-	Exists		bool
-	Running		bool
-	Status		string
+	Exists  bool
+	Running bool
+	Status  string
 }
 
 func (state containerState) String() string {
@@ -64,7 +64,7 @@ func (event containerEvent) State() containerState {
 	return state
 }
 
-type Containers	map[string]*docker.Container
+type Containers map[string]*docker.Container
 
 func (containers Containers) clone() Containers {
 	copy := make(Containers)

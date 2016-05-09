@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-type testReaderSource struct{
-	name		string
-	scanNodes	[]Node
-	syncNodes	[]Node
-	config		Config	// final state
+type testReaderSource struct {
+	name      string
+	scanNodes []Node
+	syncNodes []Node
+	config    Config // final state
 
-	syncGroup	*sync.WaitGroup
+	syncGroup *sync.WaitGroup
 }
 
 func (test *testReaderSource) String() string {
@@ -34,7 +34,7 @@ func (test *testReaderSource) Scan() ([]Node, error) {
 func (test *testReaderSource) Sync(syncChan chan Node) error {
 	test.syncGroup.Add(1)
 
-	go func(){
+	go func() {
 		defer test.syncGroup.Done()
 
 		for _, node := range test.syncNodes {
@@ -53,97 +53,94 @@ func (test *testReaderSource) Sync(syncChan chan Node) error {
 var testReaderSources = map[string]*testReaderSource{
 	"test1": {
 		name: "test1",
-        scanNodes: []Node{
-            Node{Path:"", IsDir:true},
-			Node{Path:"routes", IsDir:true},
-			Node{Path:"routes/test1", Value: "{\"Prefix4\": \"192.168.1.0/24\", \"IpvsMethod\": \"droute\"}"},
-            Node{Path:"services", IsDir:true},
-            Node{Path:"services/test", IsDir:true},
-            Node{Path:"services/test/frontend", Value: "{\"ipv4\": \"192.0.2.0\", \"tcp\": 80}"},
-            Node{Path:"services/test/backends", IsDir:true},
-            Node{Path:"services/test/backends/test1", Value: "{\"ipv4\": \"192.168.1.1\", \"tcp\": 8080}"},
-            Node{Path:"services/test/backends/test2", Value: "{\"ipv4\": \"192.168.1.2\", \"tcp\": 8080}"},
-        },
-        syncNodes: []Node{
-            Node{Path:"services/test/backends/test3", Value: "{\"ipv4\": \"192.168.1.3\", \"tcp\": 8080}"},
-            Node{Path:"services/test/backends/test1", Remove: true},
-            Node{Path:"services/test/backends", IsDir:true, Remove: true},
-            Node{Path:"services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 80}"},
-			Node{Path:"services/test6/backends/test1", Value: "{\"ipv6\": \"2001:db8:1::1\", \"tcp\": 8080}"},
-            Node{Path:"routes", IsDir:true, Remove: true},
+		scanNodes: []Node{
+			Node{Path: "", IsDir: true},
+			Node{Path: "routes", IsDir: true},
+			Node{Path: "routes/test1", Value: "{\"Prefix4\": \"192.168.1.0/24\", \"IpvsMethod\": \"droute\"}"},
+			Node{Path: "services", IsDir: true},
+			Node{Path: "services/test", IsDir: true},
+			Node{Path: "services/test/frontend", Value: "{\"ipv4\": \"192.0.2.0\", \"tcp\": 80}"},
+			Node{Path: "services/test/backends", IsDir: true},
+			Node{Path: "services/test/backends/test1", Value: "{\"ipv4\": \"192.168.1.1\", \"tcp\": 8080}"},
+			Node{Path: "services/test/backends/test2", Value: "{\"ipv4\": \"192.168.1.2\", \"tcp\": 8080}"},
+		},
+		syncNodes: []Node{
+			Node{Path: "services/test/backends/test3", Value: "{\"ipv4\": \"192.168.1.3\", \"tcp\": 8080}"},
+			Node{Path: "services/test/backends/test1", Remove: true},
+			Node{Path: "services/test/backends", IsDir: true, Remove: true},
+			Node{Path: "services/test6/frontend", Value: "{\"ipv6\": \"2001:db8::1\", \"tcp\": 80}"},
+			Node{Path: "services/test6/backends/test1", Value: "{\"ipv6\": \"2001:db8:1::1\", \"tcp\": 8080}"},
+			Node{Path: "routes", IsDir: true, Remove: true},
 		},
 	},
 	"test2": {
 		name: "test2",
-        scanNodes: []Node{
-            Node{Path:"", IsDir:true},
-            Node{Path:"services", IsDir:true},
-            Node{Path:"services/test2", IsDir:true},
-            Node{Path:"services/test2/frontend", Value: "{\"ipv4\": \"192.0.2.2\", \"tcp\": 80}"},
-            Node{Path:"services/test2/backends", IsDir:true},
-        },
-        syncNodes: []Node{
-            Node{Path:"services/test2/backends/test1", Value: "{\"ipv4\": \"192.168.2.1\", \"tcp\": 8080}"},
-            Node{Path:"services", IsDir:true, Remove: true},
-			Node{Path:"routes", IsDir:true},
-			Node{Path:"routes/test2", Value: "{\"Prefix\": \"192.168.2.0/24\", \"IpvsMethod\": \"droute\"}"},
+		scanNodes: []Node{
+			Node{Path: "", IsDir: true},
+			Node{Path: "services", IsDir: true},
+			Node{Path: "services/test2", IsDir: true},
+			Node{Path: "services/test2/frontend", Value: "{\"ipv4\": \"192.0.2.2\", \"tcp\": 80}"},
+			Node{Path: "services/test2/backends", IsDir: true},
+		},
+		syncNodes: []Node{
+			Node{Path: "services/test2/backends/test1", Value: "{\"ipv4\": \"192.168.2.1\", \"tcp\": 8080}"},
+			Node{Path: "services", IsDir: true, Remove: true},
+			Node{Path: "routes", IsDir: true},
+			Node{Path: "routes/test2", Value: "{\"Prefix\": \"192.168.2.0/24\", \"IpvsMethod\": \"droute\"}"},
 		},
 	},
 }
 
 var testReaderConfig Config = Config{
-    Services: map[string]Service{
-        "test": Service{
-            Frontend: &ServiceFrontend{
-                IPv4:   "192.0.2.0",
-                TCP:    80,
-            },
-            Backends: map[string]ServiceBackend{},
-        },
-		/*"test2": Service{
-            Frontend: &ServiceFrontend{
-                IPv4:   "192.0.2.2",
-                TCP:    80,
-            },
-            Backends: map[string]ServiceBackend{
-				"test1": ServiceBackend{
-					IPv4:   "192.168.2.1",
-					TCP:    8080,
-					Weight: 10,
-				},
+	Services: map[string]Service{
+		"test": Service{
+			Frontend: &ServiceFrontend{
+				IPv4: "192.0.2.0",
+				TCP:  80,
 			},
-		},*/
-        "test6": Service{
-            Frontend:   &ServiceFrontend{
-                IPv6: "2001:db8::1",
-                TCP:  80,
-            },
-            Backends: map[string]ServiceBackend{
+			Backends: map[string]ServiceBackend{},
+		},
+		/*"test2": Service{
+		            Frontend: &ServiceFrontend{
+		                IPv4:   "192.0.2.2",
+		                TCP:    80,
+		            },
+		            Backends: map[string]ServiceBackend{
+						"test1": ServiceBackend{
+							IPv4:   "192.168.2.1",
+							TCP:    8080,
+							Weight: 10,
+						},
+					},
+				},*/
+		"test6": Service{
+			Frontend: &ServiceFrontend{
+				IPv6: "2001:db8::1",
+				TCP:  80,
+			},
+			Backends: map[string]ServiceBackend{
 				"test1": ServiceBackend{
 					IPv6:   "2001:db8:1::1",
 					TCP:    8080,
 					Weight: 10,
 				},
 			},
-        },
-    },
+		},
+	},
 	Routes: map[string]Route{
 		/* "test1": Route{
 			Prefix4:	"192.168.1.0/24",
 			IpvsMethod: "droute",
 		}, */
 		"test2": Route{
-			Prefix:	    "192.168.2.0/24",
+			Prefix:     "192.168.2.0/24",
 			IpvsMethod: "droute",
 		},
 	},
 }
 
-
 func TestReaderUpdate(t *testing.T) {
-	var reader = Reader{
-
-	}
+	var reader = Reader{}
 
 	// setup
 	var syncGroup sync.WaitGroup
@@ -159,7 +156,7 @@ func TestReaderUpdate(t *testing.T) {
 	reader.start()
 
 	// ensure the test terminates
-	go func(){
+	go func() {
 		syncGroup.Wait()
 		reader.stop()
 	}()
@@ -178,7 +175,7 @@ func TestReaderUpdate(t *testing.T) {
 
 	prettyConfig := pretty.Config{
 		// omit Meta node
-		IncludeUnexported:	false,
+		IncludeUnexported: false,
 	}
 
 	if diff := prettyConfig.Compare(testReaderConfig, readerConfig); diff != "" {

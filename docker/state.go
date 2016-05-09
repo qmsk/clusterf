@@ -1,12 +1,12 @@
 package docker
 
 type State struct {
-    // Convenience info from docker
-    Name		string
-    Version		string
+	// Convenience info from docker
+	Name    string
+	Version string
 
-	Containers	Containers
-	Networks	Networks
+	Containers Containers
+	Networks   Networks
 }
 
 func (state *State) updateContainers(event containerEvent) {

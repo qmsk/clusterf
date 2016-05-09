@@ -1,24 +1,24 @@
 package config
 
 import (
-    "encoding/json"
-    "strings"
+	"encoding/json"
+	"strings"
 )
 
 // Low-level config model, used to load files from local and etcd
 type Node struct {
-    /* Identity */
-    Source  Source
+	/* Identity */
+	Source Source
 
-    // clusterf-relative path, so with any prefix and leading / stripped
-    Path    string
+	// clusterf-relative path, so with any prefix and leading / stripped
+	Path string
 
-    /* Type/Value */
-    IsDir   bool
+	/* Type/Value */
+	IsDir bool
 
-    // json-encoded; empty if removed
-    Value   string
-    Remove  bool
+	// json-encoded; empty if removed
+	Value  string
+	Remove bool
 }
 
 // XXX: include source?
@@ -51,26 +51,26 @@ func (node Node) Equals(other Node) bool {
 }
 
 func (node Node) unmarshal(object interface{}) error {
-    if node.Value == "" {
-        return nil
-    }
+	if node.Value == "" {
+		return nil
+	}
 
-    return json.Unmarshal([]byte(node.Value), object)
+	return json.Unmarshal([]byte(node.Value), object)
 }
 
 func makePath(path ...string) string {
-    return strings.Join(path, "/")
+	return strings.Join(path, "/")
 }
 
 func makeDirNode(path ...string) Node {
-    return Node{Path: makePath(path...), IsDir: true}
+	return Node{Path: makePath(path...), IsDir: true}
 }
 
 // Return Node from path and value
 //
 // Panics if json marshal fails
 func makeNode(value interface{}, path ...string) Node {
-    if jsonValue, err := json.Marshal(value); err != nil {
+	if jsonValue, err := json.Marshal(value); err != nil {
 		panic(err)
 	} else {
 		return Node{Path: makePath(path...), Value: string(jsonValue)}

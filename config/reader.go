@@ -8,15 +8,15 @@ import (
 
 type ReaderOptions struct {
 	SourceOptions
-	SourceURLs		[]string	`long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
+	SourceURLs []string `long:"config-source" value-name:"(file|etcd|etcd+http|etcd+https)://[<host>]/<path>"`
 
-	FilterRoutes	string		`long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
+	FilterRoutes string `long:"filter-routes" value-name:"URL-PREFIX" help:"Only apply routes from matching --config-source"`
 }
 
 // Return a new Reader with the given config URLs opened
 func (options ReaderOptions) Reader() (*Reader, error) {
 	reader := Reader{
-		options:		options,
+		options: options,
 	}
 
 	// Open all sources, and start running in preparation for Get or Listen()
@@ -37,11 +37,11 @@ func (options ReaderOptions) Reader() (*Reader, error) {
 
 // Read and combine a Config from multiple Sources
 type Reader struct {
-	options		ReaderOptions
-	config		Config
+	options ReaderOptions
+	config  Config
 
-	syncChan	chan Node
-	listenChan	chan Config
+	syncChan   chan Node
+	listenChan chan Config
 }
 
 func (reader *Reader) update(node Node) error {

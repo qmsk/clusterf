@@ -1,20 +1,20 @@
 package config
 
 import (
+	"fmt"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
-    "fmt"
-    "log"
-    "strings"
-	"time"
+	"log"
 	"net/url"
+	"strings"
+	"time"
 )
 
 type EtcdOptions struct {
-	Scheme		string			`long:"etcd-scheme" value-name:"http|https" default:"http"`
-	Hosts		[]string		`long:"etcd-host" value-name:"HOST:PORT"`
-	Prefix      string			`long:"etcd-prefix" value-name:"/PATH" default:"/clusterf"`
-	TTL			time.Duration	`long:"etcd-ttl" default:"10s"`
+	Scheme string        `long:"etcd-scheme" value-name:"http|https" default:"http"`
+	Hosts  []string      `long:"etcd-host" value-name:"HOST:PORT"`
+	Prefix string        `long:"etcd-prefix" value-name:"/PATH" default:"/clusterf"`
+	TTL    time.Duration `long:"etcd-ttl" default:"10s"`
 }
 
 func (options EtcdOptions) OpenURL(url *url.URL) (*EtcdSource, error) {
@@ -38,7 +38,6 @@ func (options EtcdOptions) OpenURL(url *url.URL) (*EtcdSource, error) {
 	return options.Open()
 }
 
-
 func (options EtcdOptions) String() string {
 	return fmt.Sprintf("etcd+%s://%s%s", options.Scheme, strings.Join(options.Hosts, ","), options.Prefix)
 }
@@ -54,8 +53,8 @@ func (options EtcdOptions) clientConfig() (clientConfig client.Config, err error
 }
 
 func (options EtcdOptions) Open() (*EtcdSource, error) {
-    etcdSource := EtcdSource{
-		options:	options,
+	etcdSource := EtcdSource{
+		options: options,
 	}
 
 	if clientConfig, err := options.clientConfig(); err != nil {
@@ -68,7 +67,7 @@ func (options EtcdOptions) Open() (*EtcdSource, error) {
 
 	etcdSource.keysAPI = client.NewKeysAPI(etcdSource.client)
 
-    return &etcdSource, nil
+	return &etcdSource, nil
 }
 
 // Undo etcd/client:ClusterError fuckery
@@ -88,17 +87,17 @@ func fixupClusterError(err error) error {
 }
 
 type EtcdSource struct {
-    options		EtcdOptions
+	options EtcdOptions
 
-    client      client.Client
-	keysAPI		client.KeysAPI
+	client  client.Client
+	keysAPI client.KeysAPI
 
 	// state to track changes from Scan() to Sync()
-    syncIndex   uint64
+	syncIndex uint64
 
 	// refresh nodes
-	writeChan	chan map[string]Node
-	flushChan	chan error
+	writeChan chan map[string]Node
+	flushChan chan error
 }
 
 func (etcd *EtcdSource) String() string {
@@ -106,7 +105,7 @@ func (etcd *EtcdSource) String() string {
 }
 
 func (etcd *EtcdSource) path(parts ...string) string {
-    return strings.Join(append([]string{etcd.options.Prefix}, parts...), "/")
+	return strings.Join(append([]string{etcd.options.Prefix}, parts...), "/")
 }
 
 /*
@@ -116,12 +115,12 @@ func (etcd *EtcdSource) path(parts ...string) string {
  */
 func (etcd *EtcdSource) Init() error {
 	if response, err := etcd.keysAPI.Set(context.Background(), etcd.path(), "", &client.SetOptions{Dir: true}); err != nil {
-        return fixupClusterError(err)
-    } else {
-        etcd.syncIndex = response.Node.CreatedIndex
-    }
+		return fixupClusterError(err)
+	} else {
+		etcd.syncIndex = response.Node.CreatedIndex
+	}
 
-    return nil
+	return nil
 }
 
 /*
@@ -134,24 +133,24 @@ func (etcd *EtcdSource) Init() error {
 func (etcd *EtcdSource) Scan() ([]Node, error) {
 	response, err := etcd.keysAPI.Get(context.Background(), etcd.path(), &client.GetOptions{Recursive: true})
 
-    if err == nil {
+	if err == nil {
 
 	} else if clientError, ok := err.(client.Error); ok && clientError.Code == client.ErrorCodeKeyNotFound {
 		// create directory instead
 		return nil, etcd.Init()
 	} else {
-        return nil, fixupClusterError(err)
-    }
+		return nil, fixupClusterError(err)
+	}
 
-    if response.Node.Dir != true {
-        return nil, fmt.Errorf("etcd prefix=%s is not a directory", response.Node.Key)
-    }
+	if response.Node.Dir != true {
+		return nil, fmt.Errorf("etcd prefix=%s is not a directory", response.Node.Key)
+	}
 
-    // the tree root's ModifiedTime may be a long long time in the past, so we can't want to use that for waits
-    // we assume this enough to ensure atomic sync with .Watch() on the same tree..
-    etcd.syncIndex = response.Index
+	// the tree root's ModifiedTime may be a long long time in the past, so we can't want to use that for waits
+	// we assume this enough to ensure atomic sync with .Watch() on the same tree..
+	etcd.syncIndex = response.Index
 
-    // scan, collect and return
+	// scan, collect and return
 	var nodes []Node
 
 	err = etcd.scanNode(response.Node, func(node Node) { nodes = append(nodes, node) })
@@ -160,15 +159,15 @@ func (etcd *EtcdSource) Scan() ([]Node, error) {
 }
 
 func (etcd *EtcdSource) parseNode(etcdNode *client.Node) (node Node, err error) {
-    // decode etcd path into config tree path
-    path := etcdNode.Key
+	// decode etcd path into config tree path
+	path := etcdNode.Key
 
-    if !strings.HasPrefix(path, etcd.options.Prefix) {
-        return node, fmt.Errorf("node outside tree: %s", path)
-    }
+	if !strings.HasPrefix(path, etcd.options.Prefix) {
+		return node, fmt.Errorf("node outside tree: %s", path)
+	}
 
-    path = strings.TrimPrefix(path, etcd.options.Prefix)
-    path = strings.Trim(path, "/")
+	path = strings.TrimPrefix(path, etcd.options.Prefix)
+	path = strings.Trim(path, "/")
 
 	node.Source = etcd
 	node.Path = path
@@ -187,14 +186,14 @@ func (etcd *EtcdSource) scanNode(etcdNode *client.Node, handler func(node Node))
 		handler(node)
 	}
 
-    // recurse
-    for _, childNode := range etcdNode.Nodes {
-        if err := etcd.scanNode(childNode, handler); err != nil {
-            return err
-        }
-    }
+	// recurse
+	for _, childNode := range etcdNode.Nodes {
+		if err := etcd.scanNode(childNode, handler); err != nil {
+			return err
+		}
+	}
 
-    return nil
+	return nil
 }
 
 /*
@@ -211,23 +210,23 @@ func (etcd *EtcdSource) Sync(syncChan chan Node) error {
 
 // Watch etcd for changes, and sync them over the chan
 func (etcd *EtcdSource) watch(watchChan chan Node) {
-    defer close(watchChan)
+	defer close(watchChan)
 
 	watcher := etcd.keysAPI.Watcher(etcd.path(), &client.WatcherOptions{AfterIndex: etcd.syncIndex, Recursive: true})
 
-    for {
+	for {
 		if response, err := watcher.Next(context.Background()); err != nil {
 			err = fixupClusterError(err)
-            log.Printf("config:EtcdSource.watch: %v", err)
+			log.Printf("config:EtcdSource.watch: %v", err)
 			return
 		} else if node, err := etcd.syncNode(response.Action, response.Node); err != nil {
 			log.Printf("config:EtcdSource.watch %#v: syncNode: %s", response, err)
 			return
 		} else {
-            log.Printf("config:EtcdSource.watch: %v %v", response.Action, node)
-            watchChan <- node
-        }
-    }
+			log.Printf("config:EtcdSource.watch: %v %v", response.Action, node)
+			watchChan <- node
+		}
+	}
 }
 
 // Handle changed node
@@ -237,14 +236,14 @@ func (etcd *EtcdSource) syncNode(etcdAction string, etcdNode *client.Node) (Node
 		return node, err
 	}
 
-    // decode action
-    switch etcdAction {
-    case "create", "set", "update", "compareAndSwap":
+	// decode action
+	switch etcdAction {
+	case "create", "set", "update", "compareAndSwap":
 
-    case "delete", "expire", "compareAndDelete":
+	case "delete", "expire", "compareAndDelete":
 		node.Remove = true
 
-    default:
+	default:
 		return node, fmt.Errorf("Unknown etcd action: %s", etcdAction)
 	}
 
@@ -379,4 +378,3 @@ func (etcd *EtcdSource) Flush() (err error) {
 
 	return
 }
-

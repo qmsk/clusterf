@@ -1,86 +1,84 @@
 package clusterf
 
 import (
-    "github.com/qmsk/clusterf/config"
-    "github.com/qmsk/clusterf/ipvs"
-	"net"
 	"github.com/kylelemons/godebug/pretty"
-    "syscall"
-    "testing"
+	"github.com/qmsk/clusterf/config"
+	"github.com/qmsk/clusterf/ipvs"
+	"net"
+	"syscall"
+	"testing"
 )
 
-var testConfigServices = map[string]struct{
-	options			IPVSOptions
-	configRoutes	map[string]config.Route
-	config			map[string]config.Service
-	services		Services
+var testConfigServices = map[string]struct {
+	options      IPVSOptions
+	configRoutes map[string]config.Route
+	config       map[string]config.Service
+	services     Services
 }{
 	"simple": {
-		options:	IPVSOptions{
-			SchedName:	"wlc",
-			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+		options: IPVSOptions{
+			SchedName: "wlc",
+			FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
 		},
-		configRoutes: map[string]config.Route{
-
-		},
-		config:		map[string]config.Service{
+		configRoutes: map[string]config.Route{},
+		config: map[string]config.Service{
 			"test": config.Service{
-				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80, UDP:80},
-				Backends:	map[string]config.ServiceBackend{
-					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, UDP:8081, Weight:10},
-					"test2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8082, Weight:10},
+				Frontend: &config.ServiceFrontend{IPv4: "10.0.0.1", TCP: 80, UDP: 80},
+				Backends: map[string]config.ServiceBackend{
+					"test1": config.ServiceBackend{IPv4: "10.1.0.1", TCP: 8080, UDP: 8081, Weight: 10},
+					"test2": config.ServiceBackend{IPv4: "10.1.0.2", TCP: 8082, Weight: 10},
 				},
 			},
 		},
-		services:	Services{
+		services: Services{
 			"inet+tcp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
-					Af:			syscall.AF_INET,
-					Protocol:	syscall.IPPROTO_TCP,
-					Addr:		net.IP{10,0,0,1},
-					Port:		80,
+					Af:       syscall.AF_INET,
+					Protocol: syscall.IPPROTO_TCP,
+					Addr:     net.IP{10, 0, 0, 1},
+					Port:     80,
 
-					SchedName:	"wlc",
-					Flags:		ipvs.Flags{0, 0xffffffff},
-					Netmask:	0xffffffff,
+					SchedName: "wlc",
+					Flags:     ipvs.Flags{0, 0xffffffff},
+					Netmask:   0xffffffff,
 				},
 				dests: ServiceDests{
 					"10.1.0.1:8080": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,1,0,1},
-							Port:		8080,
-							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-							Weight:		10,
+							Addr:      net.IP{10, 1, 0, 1},
+							Port:      8080,
+							FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
+							Weight:    10,
 						},
 					},
 					"10.1.0.2:8082": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,1,0,2},
-							Port:		8082,
-							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-							Weight:		10,
+							Addr:      net.IP{10, 1, 0, 2},
+							Port:      8082,
+							FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
+							Weight:    10,
 						},
 					},
 				},
 			},
 			"inet+udp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
-					Af:			syscall.AF_INET,
-					Protocol:	syscall.IPPROTO_UDP,
-					Addr:		net.IP{10,0,0,1},
-					Port:		80,
+					Af:       syscall.AF_INET,
+					Protocol: syscall.IPPROTO_UDP,
+					Addr:     net.IP{10, 0, 0, 1},
+					Port:     80,
 
-					SchedName:	"wlc",
-					Flags:		ipvs.Flags{0, 0xffffffff},
-					Netmask:	0xffffffff,
+					SchedName: "wlc",
+					Flags:     ipvs.Flags{0, 0xffffffff},
+					Netmask:   0xffffffff,
 				},
 				dests: ServiceDests{
 					"10.1.0.1:8081": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,1,0,1},
-							Port:		8081,
-							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-							Weight:		10,
+							Addr:      net.IP{10, 1, 0, 1},
+							Port:      8081,
+							FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
+							Weight:    10,
 						},
 					},
 				},
@@ -89,50 +87,50 @@ var testConfigServices = map[string]struct{
 	},
 
 	"routes": {
-		options:	IPVSOptions{
-			SchedName:	"wlc",
-			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+		options: IPVSOptions{
+			SchedName: "wlc",
+			FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
 		},
 		configRoutes: map[string]config.Route{
-			"test1": config.Route{Prefix:"10.1.0.0/24", Gateway:"10.255.0.1", IPVSMethod:"droute"},
-			"test2": config.Route{Prefix:"10.2.0.0/24", Gateway:"10.255.0.2", IPVSMethod:"droute"},
+			"test1": config.Route{Prefix: "10.1.0.0/24", Gateway: "10.255.0.1", IPVSMethod: "droute"},
+			"test2": config.Route{Prefix: "10.2.0.0/24", Gateway: "10.255.0.2", IPVSMethod: "droute"},
 		},
-		config:		map[string]config.Service{
+		config: map[string]config.Service{
 			"test": config.Service{
-				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
-				Backends:	map[string]config.ServiceBackend{
-					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
-					"test2":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8080, Weight:10},
+				Frontend: &config.ServiceFrontend{IPv4: "10.0.0.1", TCP: 80},
+				Backends: map[string]config.ServiceBackend{
+					"test1": config.ServiceBackend{IPv4: "10.1.0.1", TCP: 80, Weight: 10},
+					"test2": config.ServiceBackend{IPv4: "10.2.0.1", TCP: 8080, Weight: 10},
 				},
 			},
 		},
-		services:	Services{
+		services: Services{
 			"inet+tcp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
-					Af:			syscall.AF_INET,
-					Protocol:	syscall.IPPROTO_TCP,
-					Addr:		net.IP{10,0,0,1},
-					Port:		80,
+					Af:       syscall.AF_INET,
+					Protocol: syscall.IPPROTO_TCP,
+					Addr:     net.IP{10, 0, 0, 1},
+					Port:     80,
 
-					SchedName:	"wlc",
-					Flags:		ipvs.Flags{0, 0xffffffff},
-					Netmask:	0xffffffff,
+					SchedName: "wlc",
+					Flags:     ipvs.Flags{0, 0xffffffff},
+					Netmask:   0xffffffff,
 				},
 				dests: ServiceDests{
 					"10.255.0.1:80": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,255,0,1},
-							Port:		80,
-							FwdMethod:	ipvs.IP_VS_CONN_F_DROUTE,
-							Weight:		10,
+							Addr:      net.IP{10, 255, 0, 1},
+							Port:      80,
+							FwdMethod: ipvs.IP_VS_CONN_F_DROUTE,
+							Weight:    10,
 						},
 					},
 					"10.255.0.2:80": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,255,0,2},
-							Port:		80,	// using the frontend port
-							FwdMethod:	ipvs.IP_VS_CONN_F_DROUTE,
-							Weight:		10,
+							Addr:      net.IP{10, 255, 0, 2},
+							Port:      80, // using the frontend port
+							FwdMethod: ipvs.IP_VS_CONN_F_DROUTE,
+							Weight:    10,
 						},
 					},
 				},
@@ -141,51 +139,50 @@ var testConfigServices = map[string]struct{
 	},
 
 	"frontend-elide": {
-		options:	IPVSOptions{
-			SchedName:	"wlc",
-			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-			Elide:		true,
+		options: IPVSOptions{
+			SchedName: "wlc",
+			FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
+			Elide:     true,
 		},
 		configRoutes: map[string]config.Route{
-			"test1":   config.Route{Prefix:"10.1.0.0/24", IPVSMethod:"masq"},
+			"test1":   config.Route{Prefix: "10.1.0.0/24", IPVSMethod: "masq"},
 			"default": config.Route{},
 		},
-		config:		map[string]config.Service{
+		config: map[string]config.Service{
 			"test": config.Service{
-				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
-				Backends:	map[string]config.ServiceBackend{
-					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
-					"test2":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8080, Weight:10},
+				Frontend: &config.ServiceFrontend{IPv4: "10.0.0.1", TCP: 80},
+				Backends: map[string]config.ServiceBackend{
+					"test1": config.ServiceBackend{IPv4: "10.1.0.1", TCP: 80, Weight: 10},
+					"test2": config.ServiceBackend{IPv4: "10.2.0.1", TCP: 8080, Weight: 10},
 				},
 			},
 			"test2": config.Service{
-				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:81},
-				Backends:	map[string]config.ServiceBackend{
-					"test1":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8081, Weight:10},
-					"test2":	config.ServiceBackend{IPv4:"10.3.0.1", TCP:8081, Weight:10},
+				Frontend: &config.ServiceFrontend{IPv4: "10.0.0.1", TCP: 81},
+				Backends: map[string]config.ServiceBackend{
+					"test1": config.ServiceBackend{IPv4: "10.2.0.1", TCP: 8081, Weight: 10},
+					"test2": config.ServiceBackend{IPv4: "10.3.0.1", TCP: 8081, Weight: 10},
 				},
 			},
-
 		},
-		services:	Services{
+		services: Services{
 			"inet+tcp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
-					Af:			syscall.AF_INET,
-					Protocol:	syscall.IPPROTO_TCP,
-					Addr:		net.IP{10,0,0,1},
-					Port:		80,
+					Af:       syscall.AF_INET,
+					Protocol: syscall.IPPROTO_TCP,
+					Addr:     net.IP{10, 0, 0, 1},
+					Port:     80,
 
-					SchedName:	"wlc",
-					Flags:		ipvs.Flags{0, 0xffffffff},
-					Netmask:	0xffffffff,
+					SchedName: "wlc",
+					Flags:     ipvs.Flags{0, 0xffffffff},
+					Netmask:   0xffffffff,
 				},
 				dests: ServiceDests{
 					"10.1.0.1:80": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,1,0,1},
-							Port:		80,
-							FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
-							Weight:		10,
+							Addr:      net.IP{10, 1, 0, 1},
+							Port:      80,
+							FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
+							Weight:    10,
 						},
 					},
 				},
@@ -194,41 +191,41 @@ var testConfigServices = map[string]struct{
 	},
 
 	"backend-merge": {
-		options:	IPVSOptions{
-			SchedName:	"wlc",
-			FwdMethod:	ipvs.IP_VS_CONN_F_MASQ,
+		options: IPVSOptions{
+			SchedName: "wlc",
+			FwdMethod: ipvs.IP_VS_CONN_F_MASQ,
 		},
 		configRoutes: map[string]config.Route{
-			"test1": config.Route{Prefix:"10.1.0.0/24", Gateway:"10.255.0.1", IPVSMethod:"droute"},
+			"test1": config.Route{Prefix: "10.1.0.0/24", Gateway: "10.255.0.1", IPVSMethod: "droute"},
 		},
-		config:		map[string]config.Service{
+		config: map[string]config.Service{
 			"test": config.Service{
-				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
-				Backends:	map[string]config.ServiceBackend{
-					"test1-1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, Weight:10},
-					"test1-2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8080, Weight:10},
+				Frontend: &config.ServiceFrontend{IPv4: "10.0.0.1", TCP: 80},
+				Backends: map[string]config.ServiceBackend{
+					"test1-1": config.ServiceBackend{IPv4: "10.1.0.1", TCP: 8080, Weight: 10},
+					"test1-2": config.ServiceBackend{IPv4: "10.1.0.2", TCP: 8080, Weight: 10},
 				},
 			},
 		},
-		services:	Services{
+		services: Services{
 			"inet+tcp://10.0.0.1:80": Service{
 				Service: ipvs.Service{
-					Af:			syscall.AF_INET,
-					Protocol:	syscall.IPPROTO_TCP,
-					Addr:		net.IP{10,0,0,1},
-					Port:		80,
+					Af:       syscall.AF_INET,
+					Protocol: syscall.IPPROTO_TCP,
+					Addr:     net.IP{10, 0, 0, 1},
+					Port:     80,
 
-					SchedName:	"wlc",
-					Flags:		ipvs.Flags{0, 0xffffffff},
-					Netmask:	0xffffffff,
+					SchedName: "wlc",
+					Flags:     ipvs.Flags{0, 0xffffffff},
+					Netmask:   0xffffffff,
 				},
 				dests: ServiceDests{
 					"10.255.0.1:80": Dest{
 						Dest: ipvs.Dest{
-							Addr:		net.IP{10,255,0,1},
-							Port:		80,
-							FwdMethod:	ipvs.IP_VS_CONN_F_DROUTE,
-							Weight:		20, // merged
+							Addr:      net.IP{10, 255, 0, 1},
+							Port:      80,
+							FwdMethod: ipvs.IP_VS_CONN_F_DROUTE,
+							Weight:    20, // merged
 						},
 					},
 				},
