@@ -25,7 +25,7 @@ var testConfigServices = map[string]struct{
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80, UDP:80},
+				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80, UDP:80},
 				Backends:	map[string]config.ServiceBackend{
 					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, UDP:8081, Weight:10},
 					"test2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8082, Weight:10},
@@ -99,7 +99,7 @@ var testConfigServices = map[string]struct{
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
+				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
 				Backends:	map[string]config.ServiceBackend{
 					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
 					"test2":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8080, Weight:10},
@@ -147,19 +147,19 @@ var testConfigServices = map[string]struct{
 			Elide:		true,
 		},
 		configRoutes: map[string]config.Route{
-			"test1":   config.Route{Prefix4:"10.1.0.0/24", IpvsMethod:"masq"},
-			"default": config.Route{IpvsMethod:"filter"},
+			"test1":   config.Route{Prefix:"10.1.0.0/24", IPVSMethod:"masq"},
+			"default": config.Route{},
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
+				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
 				Backends:	map[string]config.ServiceBackend{
 					"test1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:80, Weight:10},
 					"test2":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8080, Weight:10},
 				},
 			},
 			"test2": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:81},
+				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:81},
 				Backends:	map[string]config.ServiceBackend{
 					"test1":	config.ServiceBackend{IPv4:"10.2.0.1", TCP:8081, Weight:10},
 					"test2":	config.ServiceBackend{IPv4:"10.3.0.1", TCP:8081, Weight:10},
@@ -203,7 +203,7 @@ var testConfigServices = map[string]struct{
 		},
 		config:		map[string]config.Service{
 			"test": config.Service{
-				Frontend:	config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
+				Frontend:	&config.ServiceFrontend{IPv4:"10.0.0.1", TCP:80},
 				Backends:	map[string]config.ServiceBackend{
 					"test1-1":	config.ServiceBackend{IPv4:"10.1.0.1", TCP:8080, Weight:10},
 					"test1-2":	config.ServiceBackend{IPv4:"10.1.0.2", TCP:8080, Weight:10},

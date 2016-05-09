@@ -51,7 +51,11 @@ func (dests ServiceDests) config(ipvsDest ipvs.Dest) {
 }
 
 // Lookup or initialize an ipvsService from a config ServiceFrontend
-func configServiceFrontend (ipvsType ipvsType, frontend config.ServiceFrontend, options IPVSOptions) (*ipvs.Service, error) {
+func configServiceFrontend (ipvsType ipvsType, frontend *config.ServiceFrontend, options IPVSOptions) (*ipvs.Service, error) {
+	if frontend == nil {
+		return nil, nil
+	}
+
     ipvsService := ipvs.Service{
 		Af:         ipvsType.Af,
 		Protocol:   ipvsType.Protocol,
