@@ -15,6 +15,11 @@ var Options struct {
 	Docker			docker.Options
 
 	ExitFlush		bool	`long:"exit-flush" help:"Flush backends on exit signal" default:"true"`
+
+	RouteNetwork	string  `long:"route-network" help:"Advertise docker network by name"`
+	RouteGateway4	string	`long:"route-gateway4" help:"Advertise docker network routes with IPv4 gateway"`
+	RouteGateway6	string	`long:"route-gateway6" help:"Advertise docker network routes with IPv6 gateway"`
+	RouteIPVSMethod string	`long:"route-ipvs-method" help:"Advertise docker network routes with ipvs-method"`
 }
 
 var flagsParser = flags.NewParser(&Options,  flags.Default)

@@ -6,6 +6,7 @@ import (
     dockerclient "github.com/fsouza/go-dockerclient"
     "fmt"
 	"log"
+	"net"
     "strings"
 )
 
@@ -98,13 +99,51 @@ func configContainer(updateConfig *config.Config, container *dockerclient.Contai
     return nil
 }
 
+// Translate a docker network into route configs
+func configNetwork(updateConfig *config.Config, network *dockerclient.Network) error {
+	if Options.RouteNetwork != "" && network.Name != Options.RouteNetwork {
+		// ignore
+		return nil
+	}
+
+	var route = config.Route{
+		IPVSMethod:		Options.RouteIPVSMethod,
+	}
+
+	for _, networkConfig := range network.IPAM.Config {
+		if ip, ipnet, _ := net.ParseCIDR(networkConfig.Subnet); ipnet == nil {
+			log.Printf("configNetwork %v: ignore subnet: %#v", network.ID, networkConfig.Subnet)
+			continue
+
+		} else if ip4 := ip.To4(); ip4 != nil {
+			route.Prefix = ipnet.String()
+			route.Gateway = Options.RouteGateway4
+
+		} else if ip16 := ip.To16(); ip16 != nil {
+			route.Prefix = ipnet.String()
+			route.Gateway = Options.RouteGateway6
+		}
+
+		updateConfig.Routes[network.ID] = route
+	}
+
+	return nil
+}
+
 func makeConfig (dockerState docker.State) (config.Config, error) {
 	var config = config.Config{
 		Services:	make(map[string]config.Service),
+		Routes:		make(map[string]config.Route),
 	}
 
 	for _, container := range dockerState.Containers {
 		if err := configContainer(&config, container); err != nil {
+			return config, err
+		}
+	}
+
+	for _, network := range dockerState.Networks {
+		if err := configNetwork(&config, network); err != nil {
 			return config, err
 		}
 	}
