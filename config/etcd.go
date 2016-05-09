@@ -218,13 +218,13 @@ func (etcd *EtcdSource) watch(watchChan chan Node) {
     for {
 		if response, err := watcher.Next(context.Background()); err != nil {
 			err = fixupClusterError(err)
-            log.Printf("config:EtcdSource.watch: %s\n", err)
+            log.Printf("config:EtcdSource.watch: %s", err)
 			return
 		} else if node, err := etcd.syncNode(response.Action, response.Node); err != nil {
-			log.Printf("config:EtcdSource.watch %#v: syncNode: %s\n", response, err)
+			log.Printf("config:EtcdSource.watch %#v: syncNode: %s", response, err)
 			return
 		} else {
-            log.Printf("config:EtcdSource.watch: %v\n", node)
+            log.Printf("config:EtcdSource.watch: %v", node)
             watchChan <- node
         }
     }
@@ -305,7 +305,7 @@ func (etcd *EtcdSource) writer() {
 			// XXX: how much of our TTL does this refresh-loop consume...?
 			for _, node := range nodes {
 				if err := etcd.refresh(node); err != nil {
-					log.Printf("config:EtcdSource %v: writer: refresh %v: %v\n", etcd, node, err)
+					log.Printf("config:EtcdSource %v: writer: refresh %v: %v", etcd, node, err)
 				}
 			}
 		case writeNodes, open := <-etcd.writeChan:
@@ -316,7 +316,9 @@ func (etcd *EtcdSource) writer() {
 				if _, exists := writeNodes[key]; !exists {
 					// removed
 					if err := etcd.remove(node); err != nil {
-						log.Printf("config:EtcdSource %v: writer: remove %v: %v\n", etcd, node, err)
+						log.Printf("config:EtcdSource %v: writer: remove %v: %v", etcd, node, err)
+					} else {
+						log.Printf("config:EtcdSource %v: writer: remove %v", etcd, node)
 					}
 				}
 			}
@@ -324,17 +326,22 @@ func (etcd *EtcdSource) writer() {
 				if oldNode, exists := nodes[key]; !exists {
 					// new node
 					if err := etcd.set(node); err != nil {
-						log.Printf("config:EtcdSource %v: writer: set %v: %v\n", etcd, node, err)
+						log.Printf("config:EtcdSource %v: writer: new %v: %v", etcd, node, err)
+					} else {
+						log.Printf("config:EtcdSource %v: writer: new %v", etcd, node)
 					}
 				} else if !node.Equals(oldNode) {
 					// changed
 					if err := etcd.set(node); err != nil {
-						log.Printf("config:EtcdSource %v: writer: set %v: %v\n", etcd, node, err)
+						log.Printf("config:EtcdSource %v: writer: set %v: %v", etcd, node, err)
+					} else {
+						log.Printf("config:EtcdSource %v: writer: set %v", etcd, node)
 					}
 				}
 			}
 
 			if open {
+				// XXX: update in place when actions are succesful instead?
 				nodes = writeNodes
 			} else {
 				// exit
@@ -367,7 +374,7 @@ func (etcd *EtcdSource) Flush() (err error) {
 
 	// wait for flush to complete
 	for err = range etcd.flushChan {
-		log.Printf("config:EtcdSource %v: Flush: %v\n", etcd, err)
+		log.Printf("config:EtcdSource %v: Flush: %v", etcd, err)
 	}
 
 	return
