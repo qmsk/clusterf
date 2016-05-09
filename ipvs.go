@@ -88,7 +88,7 @@ func (driver *IPVSDriver) init(options IPVSOptions) error {
 }
 
 // Reset running state in kernel
-func (driver *IPVSDriver) Reset() error {
+func (driver *IPVSDriver) Flush() error {
 	if driver.writeClient == nil {
 
 	} else if err := driver.writeClient.Flush(); err != nil {

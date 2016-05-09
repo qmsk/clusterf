@@ -11,7 +11,7 @@ var Options struct {
 	ConfigReader	config.ReaderOptions	`group:"Config Reader"`
 	IPVS			clusterf.IPVSOptions	`group:"IPVS"`
 
-	Reset			bool		`long:"reset" help:"Flush all IPVS services before applying configuration"`
+	Flush			bool		`long:"flush" help:"Flush all IPVS services before applying configuration"`
 	Print			bool		`long:"print" help:"Output all IPVS rules after applying configuration"`
 }
 
@@ -36,9 +36,9 @@ func main() {
 	}
 
     // sync
-	if Options.Reset {
-		if err := ipvsDriver.Reset(); err != nil {
-			log.Fatalf("IPVSDriver.Reset: %v\n", err)
+	if Options.Flush {
+		if err := ipvsDriver.Flush(); err != nil {
+			log.Fatalf("IPVSDriver.Flush: %v\n", err)
 		}
 	} else {
 		if err := ipvsDriver.Sync(); err != nil {
