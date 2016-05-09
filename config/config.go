@@ -40,7 +40,7 @@ type ServiceBackend struct {
     TCP     uint16  `json:"tcp,omitempty"`
     UDP     uint16  `json:"udp,omitempty"`
 
-    Weight  uint    `json:"weight,omitempty"`   // default: 10
+    Weight  uint    `json:"weight"`   // default: 10
 }
 
 const ServiceBackendWeight uint = 10
