@@ -155,9 +155,9 @@ func TestReaderScanError(t *testing.T) {
 }
 
 var testReaderSources = map[string]*testReaderSyncSource{
-	"test1": {
+	"test-1": {
 		testReaderSource: testReaderSource{
-			name: "test1",
+			name: "test-1",
 			scanNodes: []Node{
 				Node{Path: "", IsDir: true},
 				Node{Path: "routes", IsDir: true},
@@ -178,9 +178,9 @@ var testReaderSources = map[string]*testReaderSyncSource{
 			Node{Path: "services/test6/backends/test1", Value: `{"ipv6": "2001:db8:1::1", "tcp": 8080}`},
 		},
 	},
-	"test2": {
+	"test-2": {
 		testReaderSource: testReaderSource{
-			name: "test2",
+			name: "test-2",
 			scanNodes: []Node{
 				Node{Path: "", IsDir: true},
 				Node{Path: "services", IsDir: true},
@@ -196,6 +196,21 @@ var testReaderSources = map[string]*testReaderSyncSource{
 			Node{Path: "routes/test2", Value: `{"Prefix": "192.168.2.0/24", "IpvsMethod": "droute"}`},
 		},
 	},
+
+	// these routes get filtered out
+	"skip-test3": {
+		testReaderSource: testReaderSource{
+			name: "skip-test3",
+			scanNodes: []Node{
+				Node{Path: "routes", IsDir: true},
+				Node{Path: "routes/test3", Value: `{"Prefix": "192.168.2.0/24", "IpvsMethod": "masq"}`},
+			},
+		},
+		syncNodes: []Node{
+			Node{Path: "routes/test3", Value: `{"Prefix": "192.168.2.0/24", "IpvsMethod": "droute"}`},
+		},
+	},
+
 }
 
 var testReaderConfig Config = Config{
@@ -248,6 +263,8 @@ var testReaderConfig Config = Config{
 
 func TestReaderUpdate(t *testing.T) {
 	var reader Reader
+
+	reader.options.FilterRoutes = "test-"
 
 	if err := reader.init(); err != nil {
 		panic(err)
