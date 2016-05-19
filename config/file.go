@@ -12,8 +12,15 @@ import (
 )
 
 func openFileSource(url *url.URL) (*FileSource, error) {
+	path := url.Path
+
+	// XXX: hack to support relative paths as file://dir/...
+	if url.Host != "" {
+		path = url.Host + path
+	}
+
 	fileOptions := FileOptions{
-		Path: url.Path,
+		Path: path,
 	}
 
 	return fileOptions.Open()
