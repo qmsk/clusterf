@@ -199,7 +199,7 @@ func (etcd *EtcdSource) scanNode(etcdNode *client.Node, handler func(node Node))
 /*
  * Watch for changed Nodes in etcd.
  *
- * Sends any changes on the returned channel. Shared amongst all listeners.
+ * Sends any changes on the returned channel. Closes the channel on errors.
  */
 func (etcd *EtcdSource) Sync(syncChan chan Node) error {
 	// kick off new goroutine to handle initial services and updates
