@@ -8,6 +8,81 @@ import (
 	"time"
 )
 
+// from config/test-files
+var testFilesConfig Config = Config{
+	Services: map[string]Service{
+		"test": Service{
+			Frontend: &ServiceFrontend{
+				IPv4: "192.0.2.0",
+				TCP:  80,
+			},
+			Backends: map[string]ServiceBackend{
+				"test1": ServiceBackend{
+					IPv4:   "192.168.1.1",
+					TCP:    8080,
+					Weight: 10,
+				},
+				"test2": ServiceBackend{
+					IPv4:   "192.168.1.2",
+					TCP:    8080,
+					Weight: 10,
+				},
+			},
+		},
+		"test6": Service{
+			Frontend: &ServiceFrontend{
+				IPv6: "2001:db8::1",
+				TCP:  80,
+			},
+			Backends: map[string]ServiceBackend{
+				"test1": ServiceBackend{
+					IPv6:   "2001:db8:1::1",
+					TCP:    8080,
+					Weight: 10,
+				},
+			},
+		},
+	},
+	Routes: map[string]Route{
+		"default": Route{
+
+		},
+		"test1": Route{
+			Prefix:		"192.168.1.0/24",
+			IPVSMethod: "droute",
+		},
+		"test2": Route{
+			Prefix:     "192.168.2.0/24",
+			IPVSMethod: "droute",
+		},
+	},
+}
+
+func TestReaderFiles(t *testing.T) {
+	var readerOptions = ReaderOptions{
+		SourceURLs: []string{
+			"file://./test-files",
+		},
+	}
+
+	reader, err := readerOptions.Reader()
+	if err != nil {
+		t.Fatalf("Reader: %v", err)
+	}
+
+	config := reader.Get()
+
+	// diff
+	prettyConfig := pretty.Config{
+		// omit Meta node
+		IncludeUnexported: false,
+	}
+
+	if diff := prettyConfig.Compare(testFilesConfig, config); diff != "" {
+		t.Errorf("reader config:\n%s", diff)
+	}
+}
+
 type testReaderSource struct {
 	name      string
 	scanNodes []Node
