@@ -19,6 +19,9 @@ func openFileSource(url *url.URL) (*FileSource, error) {
 		path = url.Host + path
 	}
 
+	// normalized, as required by Walk() to trim the prefix
+	path = filepath.Clean(path)
+
 	fileOptions := FileOptions{
 		Path: path,
 	}
@@ -59,6 +62,7 @@ func (fs *FileSource) Scan() (nodes []Node, err error) {
 		}
 
 		node := Node{
+			// assumes that Walk() gives us the exact prefix as we passed - requires the root path to be normalized!
 			Path:   strings.Trim(strings.TrimPrefix(path, fs.options.Path), "/"),
 			IsDir:  info.IsDir(),
 			Source: fs,
