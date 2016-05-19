@@ -84,15 +84,15 @@ type Route struct {
 
 	// IPv4/IPv6 prefix to match
 	// empty for default match
-	Prefix string
+	Prefix string `json:",omitempty"`
 
 	// Override backend IPv4/IPv6 address for ipvs
-	Gateway string
+	Gateway string `json:",omitempty"`
 
 	// Configure IPVS fwd-method for destination:
 	//  droute tunnel masq
 	// Filter out backend if set to empty string.
-	IPVSMethod string
+	IPVSMethod string `json:",omitempty"`
 }
 
 // Top-level config object
