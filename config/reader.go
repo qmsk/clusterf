@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"strings"
 )
@@ -55,7 +56,11 @@ func (rs *readerSource) update(node Node) error {
 		}
 	}
 
-	return rs.config.update(node)
+	if err := rs.config.update(node); err != nil {
+		return fmt.Errorf("config.readerSource %v: update %v: %v", rs, node, err)
+	}
+
+	return nil
 }
 
 func (rs *readerSource) scan(scanSource scanSource) error {
