@@ -140,7 +140,9 @@ func (reader *Reader) stop() {
 	close(reader.syncChan)
 }
 
-// Return Config from merged source Configs
+// Return Config from merged source Configs.
+//
+// Each merged Config is a complete copy of any per-source Configs, and safe against later modifications.
 func (reader *Reader) get() Config {
 	// start from empty config
 	var config Config
@@ -160,7 +162,10 @@ func (reader *Reader) run() {
 
 	// apply sync updates
 	for node := range reader.syncChan {
+		// modify the source's Config in-place
 		reader.sources[node.Source.String()].update(node)
+
+		// send a merged copy, safe for concurrent reading by chan receivers
 		reader.listenChan <- reader.get()
 	}
 }

@@ -60,6 +60,7 @@ func (service *Service) setBackend(backendName string, serviceBackend ServiceBac
 	}
 }
 
+// Modify this Service in-place, by merging in a copy of the given Service.
 func (service *Service) merge(other Service) {
 	if other.Frontend != nil {
 		service.Frontend = other.Frontend
@@ -188,7 +189,9 @@ func (config *Config) updateRoute(node Node, routeName string, route Route) erro
 	return nil
 }
 
-// Update config from Node
+// Update config from Node.
+//
+// This modifieds the Config in-place, and is not safe against any concurrent usage.
 func (config *Config) update(node Node) error {
 	nodePath := strings.Split(node.Path, "/")
 
@@ -275,6 +278,9 @@ func (config *Config) update(node Node) error {
 	}
 }
 
+// visit() each Node in the tree.
+//
+// Returns error on panic.
 func (config Config) walk(visit func(node Node)) (err error) {
 	defer func() {
 		if panicValue := recover(); panicValue == nil {
@@ -307,6 +313,9 @@ func (config Config) walk(visit func(node Node)) (err error) {
 	return
 }
 
+// Walk the config, and return a map of Nodes by path.
+//
+// Suitable for use with writeSource.Write()
 func (config Config) compile() (map[string]Node, error) {
 	var nodes = map[string]Node{}
 
@@ -316,6 +325,7 @@ func (config Config) compile() (map[string]Node, error) {
 	return nodes, err
 }
 
+// Modify this Config in-place, by merging in a copy of the given Config 
 func (config *Config) merge(mergeConfig Config) {
 	for serviceName, mergeService := range mergeConfig.Services {
 		service := config.Services[serviceName]
