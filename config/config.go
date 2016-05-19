@@ -52,13 +52,9 @@ type Service struct {
 	Backends map[string]ServiceBackend
 }
 
-func (service *Service) setBackend(backendName string, serviceBackend ServiceBackend, remove bool) {
+func (service *Service) setBackend(backendName string, serviceBackend ServiceBackend) {
 	if service.Backends == nil {
-		service.Backends = make(map[string]ServiceBackend)
-	}
-
-	if remove {
-		delete(service.Backends, backendName)
+		service.Backends = map[string]ServiceBackend{backendName: serviceBackend}
 	} else {
 		service.Backends[backendName] = serviceBackend
 	}
@@ -158,7 +154,12 @@ func (config *Config) updateServiceBackends(node Node, serviceName string) error
 func (config *Config) updateServiceBackend(node Node, serviceName string, backendName string, serviceBackend ServiceBackend) error {
 	service := config.Services[serviceName]
 
-	service.setBackend(backendName, serviceBackend, node.Remove)
+	if node.Remove {
+		delete(service.Backends, backendName)
+	} else {
+		service.setBackend(backendName, serviceBackend)
+	}
+
 	config.setService(serviceName, service)
 
 	return nil
