@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"strings"
 )
@@ -15,8 +14,12 @@ type ReaderOptions struct {
 
 // Return a new Reader with the given config URLs opened
 func (options ReaderOptions) Reader() (*Reader, error) {
-	reader := Reader{
-		options: options,
+	var reader = Reader{
+		options:	options,
+	}
+
+	if err := reader.init(); err != nil {
+		return nil, err
 	}
 
 	// Open all sources, and start running in preparation for Get or Listen()
@@ -30,64 +33,98 @@ func (options ReaderOptions) Reader() (*Reader, error) {
 		}
 	}
 
-	reader.start()
-
 	return &reader, nil
 }
 
-// Read and combine a Config from multiple Sources
-type Reader struct {
+// Per-source state
+type readerSource struct {
 	options ReaderOptions
-	config  Config
-
-	syncChan   chan Node
-	listenChan chan Config
+	source	Source
+	config	Config
 }
 
-func (reader *Reader) update(node Node) error {
-	if reader.options.FilterRoutes != "" && strings.HasPrefix(node.Path, "routes/") && !strings.HasPrefix(node.Source.String(), reader.options.FilterRoutes) {
-		log.Printf("Filter out route: %v", node.Path)
-		return nil
+func (rs *readerSource) String() string {
+	return rs.source.String()
+}
+
+func (rs *readerSource) update(node Node) error {
+	if rs.options.FilterRoutes != "" && strings.HasPrefix(node.Path, "routes/") {
+		if !strings.HasPrefix(rs.source.String(), rs.options.FilterRoutes) {
+			log.Printf("config:readerSource %v: Filter out route: %v", rs, node)
+			return nil
+		}
 	}
 
-	return reader.config.update(node)
+	return rs.config.update(node)
 }
 
-func (reader *Reader) open(source Source) error {
-	if scanSource, ok := source.(scanSource); !ok {
-
-	} else if nodes, err := scanSource.Scan(); err != nil {
+func (rs *readerSource) scan(scanSource scanSource) error {
+	if nodes, err := scanSource.Scan(); err != nil {
 		return err
 	} else {
 		for _, node := range nodes {
-			if err := reader.update(node); err != nil {
+			if err := rs.update(node); err != nil {
 				return err
 			}
-		}
-	}
-
-	if syncSource, ok := source.(syncSource); !ok {
-
-	} else {
-		// Only set sync chan if we have a source to sync from
-		if reader.syncChan == nil {
-			reader.syncChan = make(chan Node)
-		}
-
-		if err := syncSource.Sync(reader.syncChan); err != nil {
-			return err
 		}
 	}
 
 	return nil
 }
 
-// Start after initial open() sync of all sources to our config
-func (reader *Reader) start() {
-	if reader.listenChan != nil {
-		panic(fmt.Errorf("Already running"))
+func (rs *readerSource) open(syncChan chan Node) error {
+	if scanSource, ok := rs.source.(scanSource); !ok {
+
+	} else if err := rs.scan(scanSource); err != nil {
+		return err
 	}
 
+	// sync to the shared syncChan
+	// XXX: the source will close() this chan on errors, all other sources panic?!
+	if syncSource, ok := rs.source.(syncSource); !ok {
+
+	} else if err := syncSource.Sync(syncChan); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Read and merge Configs from multiple Sources
+type Reader struct {
+	options ReaderOptions
+	sources	map[string]*readerSource
+
+	syncChan chan Node
+	listenChan chan Config
+}
+
+func (reader *Reader) init() error {
+	reader.sources = make(map[string]*readerSource)
+	reader.syncChan = make(chan Node)
+
+	return nil
+}
+
+// Add new config Source during setup. Does initial scan() and setup sync() if any
+//
+// Must be called before start()
+func (reader *Reader) open(source Source) error {
+	var readerSource = &readerSource{
+		options:	reader.options,
+		source:		source,
+	}
+
+	if err := readerSource.open(reader.syncChan); err != nil {
+		return err
+	}
+
+	reader.sources[readerSource.String()] = readerSource
+
+	return nil
+}
+
+func (reader *Reader) start() {
 	reader.listenChan = make(chan Config)
 
 	go reader.run()
@@ -98,37 +135,49 @@ func (reader *Reader) stop() {
 	close(reader.syncChan)
 }
 
-// Get current config
-func (reader *Reader) Get() Config {
-	// XXX: unsafe
-	return reader.config
-}
+// Return Config from merged source Configs
+func (reader *Reader) get() Config {
+	// start from empty config
+	var config Config
 
-// Follow config updates
-// Closed if there are no sources to sync updates from, or on error.
-// TODO: errors from chan close
-func (reader *Reader) Listen() chan Config {
-	return reader.listenChan
+	for _, rs := range reader.sources {
+		config.merge(rs.config)
+	}
+
+	return config
 }
 
 func (reader *Reader) run() {
 	defer close(reader.listenChan)
 
 	// output initial state
-	reader.listenChan <- reader.config
-
-	if reader.syncChan == nil {
-		// did not open() any Sources to Sync() from, so no config updates to apply
-		return
-	}
+	reader.listenChan <- reader.get()
 
 	// apply sync updates
 	for node := range reader.syncChan {
-		if err := reader.update(node); err != nil {
-			log.Printf("config:Reader.listener: Config.update %#v: %v\n", node, err)
-			return
-		}
-
-		reader.listenChan <- reader.config
+		reader.sources[node.Source.String()].update(node)
+		reader.listenChan <- reader.get()
 	}
+}
+
+// Get current config
+func (reader *Reader) Get() Config {
+	if reader.listenChan != nil {
+		panic("Get() from Listening Reader")
+	}
+
+	return reader.get()
+}
+
+// Follow config updates
+// Closed if there are no sources to sync updates from, or on error.
+// TODO: errors from chan close
+func (reader *Reader) Listen() chan Config {
+	if reader.listenChan != nil {
+		panic("Listen() from Listening Reader")
+	}
+
+	reader.start()
+
+	return reader.listenChan
 }

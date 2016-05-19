@@ -193,8 +193,10 @@ var testConfigUpdate = []struct {
 
 func TestConfigUpdate(t *testing.T) {
 	for _, test := range testConfigUpdate {
-		var config Config = test.initConfig
+		var config Config
 		var err error
+
+		config.merge(test.initConfig)
 
 		for _, testNode := range test.nodes {
 			if err = config.update(testNode); err != nil {
@@ -283,6 +285,71 @@ func TestConfigCompile(t *testing.T) {
 
 		if diff := prettyConfig.Compare(test.nodes, nodes); diff != "" {
 			t.Errorf("incorrect nodes:\n%s", diff)
+		}
+	}
+}
+
+var testConfigMerge = []struct{
+	mergeConfigs	[]Config
+	config			Config
+}{
+	{
+		config: Config{},
+	},
+	{
+		mergeConfigs: []Config{
+			Config{
+				Services: map[string]Service{
+					"test": Service{
+						Frontend: &ServiceFrontend{
+							IPv4: "127.0.0.1",
+							TCP:  8080,
+						},
+						Backends: map[string]ServiceBackend{
+							"test1": ServiceBackend{
+								IPv4:   "127.0.0.1",
+								TCP:    8081,
+								Weight: 10,
+							},
+							"test2": ServiceBackend{
+								IPv4:   "127.0.0.1",
+								TCP:    8082,
+								Weight: 10,
+							},
+						},
+					},
+				},
+			},
+			Config{
+				Services: map[string]Service{
+					"test6": Service{
+						Frontend: &ServiceFrontend{
+							IPv6: "2001:db8::1",
+							TCP:  8080,
+						},
+					},
+				},
+			},
+		},
+		config: testConfig,
+	},
+}
+
+func TestConfigMerge(t *testing.T) {
+	for _, test := range testConfigMerge {
+		var config Config
+
+		for _, mergeConfig := range test.mergeConfigs {
+			config.merge(mergeConfig)
+		}
+
+		prettyConfig := pretty.Config{
+			// omit Meta node
+			IncludeUnexported: false,
+		}
+
+		if diff := prettyConfig.Compare(test.config, config); diff != "" {
+			t.Errorf("incorrect config:\n%s", diff)
 		}
 	}
 }

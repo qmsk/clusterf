@@ -52,41 +52,31 @@ type Service struct {
 	Backends map[string]ServiceBackend
 }
 
-// Copy-on-write update for .Backends
 func (service *Service) setBackend(backendName string, serviceBackend ServiceBackend, remove bool) {
-	serviceBackends := make(map[string]ServiceBackend)
-
-	for backendName, backend := range service.Backends {
-		serviceBackends[backendName] = backend
+	if service.Backends == nil {
+		service.Backends = make(map[string]ServiceBackend)
 	}
 
 	if remove {
-		delete(serviceBackends, backendName)
+		delete(service.Backends, backendName)
 	} else {
-		serviceBackends[backendName] = serviceBackend
+		service.Backends[backendName] = serviceBackend
 	}
-
-	service.Backends = serviceBackends
 }
 
-// Apply a recursive remove from source
-func (service *Service) removeBackends(source Source) {
-	serviceBackends := make(map[string]ServiceBackend)
-
-	for backendName, backend := range service.Backends {
-		if source == nil || backend.Source() == source.String() {
-			//log.Printf("service %s drop source=%s backends: %s source=%s\n", service.Path(), source.String(), backendName, backend.Source())
-
-			// remove all from this source
-			continue
-		} else {
-			//log.Printf("service %s keep source=%s backends: %s source=%s\n", service.Path(), source.String(), backendName, backend.Source())
-		}
-
-		serviceBackends[backendName] = backend
+func (service *Service) merge(other Service) {
+	if other.Frontend != nil {
+		service.Frontend = other.Frontend
 	}
 
-	service.Backends = serviceBackends
+	// backends
+	if service.Backends == nil {
+		service.Backends = make(map[string]ServiceBackend)
+	}
+
+	for backendName, backend := range other.Backends {
+		service.Backends[backendName] = backend
+	}
 }
 
 type Route struct {
@@ -111,49 +101,30 @@ type Config struct {
 	Services map[string]Service
 }
 
-// Copy-on-write update for .Services
-func (config *Config) setService(serviceName string, service Service, remove bool) {
-	services := make(map[string]Service)
-
-	for serviceName, service := range config.Services {
-		services[serviceName] = service
-	}
-
-	if remove {
-		delete(services, serviceName)
+func (config *Config) setService(serviceName string, service Service) {
+	if config.Services == nil {
+		config.Services = map[string]Service{serviceName: service}
 	} else {
-		services[serviceName] = service
+		config.Services[serviceName] = service
 	}
-
-	config.Services = services
 }
 
 func (config *Config) updateServices(node Node) error {
 	if node.Remove {
-		services := make(map[string]Service)
-
-		for serviceName, service := range config.Services {
-			if node.Source == nil || service.Source() == node.Source.String() {
-				// remove service from this source
-				continue
-			} else {
-				// remove any backends from this source
-				service.removeBackends(node.Source)
-			}
-
-			services[serviceName] = service
-		}
-
-		config.Services = services
+		config.Services = nil
 	}
 
 	return nil
 }
 
 func (config *Config) updateService(node Node, serviceName string) error {
-	service := config.Services[serviceName]
+	if node.Remove {
+		delete(config.Services, serviceName)
+	} else {
+		service := config.Services[serviceName]
 
-	config.setService(serviceName, service, node.Remove)
+		config.setService(serviceName, service)
+	}
 
 	return nil
 }
@@ -161,16 +132,13 @@ func (config *Config) updateService(node Node, serviceName string) error {
 func (config *Config) updateServiceFrontend(node Node, serviceName string, serviceFrontend ServiceFrontend) error {
 	service := config.Services[serviceName]
 
-	// service is owned by whatever source has its Frontend
-	service.node = node
-
 	if node.Remove {
 		service.Frontend = nil
 	} else {
 		service.Frontend = &serviceFrontend
 	}
 
-	config.setService(serviceName, service, node.Remove)
+	config.setService(serviceName, service)
 
 	return nil
 }
@@ -179,10 +147,10 @@ func (config *Config) updateServiceBackends(node Node, serviceName string) error
 	service := config.Services[serviceName]
 
 	if node.Remove {
-		service.removeBackends(node.Source)
+		service.Backends = nil
 	}
 
-	config.setService(serviceName, service, false)
+	config.setService(serviceName, service)
 
 	return nil
 }
@@ -191,45 +159,30 @@ func (config *Config) updateServiceBackend(node Node, serviceName string, backen
 	service := config.Services[serviceName]
 
 	service.setBackend(backendName, serviceBackend, node.Remove)
-	config.setService(serviceName, service, false)
+	config.setService(serviceName, service)
 
 	return nil
 }
 
 func (config *Config) updateRoutes(node Node) error {
 	if node.Remove {
-		routes := make(map[string]Route)
-
-		for routeName, route := range config.Routes {
-			if route.Source() == node.Source.String() {
-				// remove from this source
-				continue
-			}
-
-			routes[routeName] = route
-		}
-
-		config.Routes = routes
+		config.Routes = nil
 	}
 
 	return nil
 }
 
 func (config *Config) updateRoute(node Node, routeName string, route Route) error {
-	routes := make(map[string]Route)
-
-	for name, route := range config.Routes {
-		routes[name] = route
-	}
-
 	if node.Remove {
 		// clear
-		delete(routes, routeName)
-	} else {
-		routes[routeName] = route
-	}
+		delete(config.Routes, routeName)
 
-	config.Routes = routes
+	} else if config.Routes == nil {
+		config.Routes = map[string]Route{routeName: route}
+
+	} else {
+		config.Routes[routeName] = route
+	}
 
 	return nil
 }
@@ -360,4 +313,26 @@ func (config Config) compile() (map[string]Node, error) {
 		nodes[node.Path] = node
 	})
 	return nodes, err
+}
+
+func (config *Config) merge(mergeConfig Config) {
+	for serviceName, mergeService := range mergeConfig.Services {
+		service := config.Services[serviceName]
+
+		service.merge(mergeService)
+
+		if config.Services == nil {
+			config.Services = map[string]Service{serviceName: service}
+		} else {
+			config.Services[serviceName] = service
+		}
+	}
+
+	for routeName, route := range mergeConfig.Routes {
+		if config.Routes == nil {
+			config.Routes = map[string]Route{routeName: route}
+		} else {
+			config.Routes[routeName] = route
+		}
+	}
 }

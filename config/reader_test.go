@@ -140,7 +140,11 @@ var testReaderConfig Config = Config{
 }
 
 func TestReaderUpdate(t *testing.T) {
-	var reader = Reader{}
+	var reader Reader
+
+	if err := reader.init(); err != nil {
+		panic(err)
+	}
 
 	// setup
 	var syncGroup sync.WaitGroup
@@ -152,8 +156,6 @@ func TestReaderUpdate(t *testing.T) {
 			t.Fatalf("reader.open %v: %v\n", name, err)
 		}
 	}
-
-	reader.start()
 
 	// ensure the test terminates
 	go func() {
