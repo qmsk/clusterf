@@ -97,6 +97,25 @@ var testConfigUpdate = []struct {
 		},
 		error: "service test frontend: invalid character 'o' in literal null (expecting 'u')",
 	},
+	{
+		nodes: []Node{
+			Node{Path: "services/test/backends/test2", Value: "not json"},
+		},
+		error: "service test backend test2: invalid character 'o' in literal null (expecting 'u')",
+	},
+	{
+		nodes: []Node{
+			Node{Path: "routes/test", Value: "not json"},
+		},
+		error: "route test: invalid character 'o' in literal null (expecting 'u')",
+	},
+	{
+		nodes: []Node{
+			Node{Path: "routes/asdf/test", Value: `{"Prefix":"10.0.0.0/24"}`},
+		},
+		error: "Ignore unknown route node",
+	},
+
 
 	{
 		nodes: []Node{
@@ -112,6 +131,97 @@ var testConfigUpdate = []struct {
 		config: testConfig,
 	},
 
+	{
+		nodes: []Node{
+			Node{Path: "routes", IsDir: true},
+			Node{Path: "routes/default", Value: `{}`},
+			Node{Path: "routes/test1", Value: `{"Prefix":"10.0.1.0/24", "IPVSMethod":"droute"}`},
+		},
+		config: Config{
+			Routes: map[string]Route{
+				"default": Route{
+
+				},
+				"test1": Route{
+					Prefix: "10.0.1.0/24",
+					IPVSMethod: "droute",
+				},
+			},
+		},
+	},
+	{
+		initConfig: Config{
+			Routes: map[string]Route{
+				"default": Route{
+
+				},
+				"test1": Route{
+					Prefix: "10.0.1.0/24",
+					IPVSMethod: "droute",
+				},
+			},
+		},
+		nodes: []Node{
+			Node{Path: "routes/test1", Remove: true},
+		},
+		config: Config{
+			Routes: map[string]Route{
+				"default": Route{
+
+				},
+			},
+		},
+	},
+	{
+		initConfig: Config{
+			Routes: map[string]Route{
+				"default": Route{
+
+				},
+				"test1": Route{
+					Prefix: "10.0.1.0/24",
+					IPVSMethod: "droute",
+				},
+			},
+		},
+		nodes: []Node{
+			Node{Path: "routes", IsDir: true, Remove: true},
+		},
+		config: Config{
+			Routes: map[string]Route{},
+		},
+	},
+
+	{
+		initConfig: testConfig,
+		nodes: []Node{
+			Node{Path: "services/test/frontend", Remove: true},
+		},
+		config: Config{
+			Services: map[string]Service{
+				"test": Service{
+					Backends: map[string]ServiceBackend{
+						"test1": ServiceBackend{
+							IPv4:   "127.0.0.1",
+							TCP:    8081,
+							Weight: 10,
+						},
+						"test2": ServiceBackend{
+							IPv4:   "127.0.0.1",
+							TCP:    8082,
+							Weight: 10,
+						},
+					},
+				},
+				"test6": Service{
+					Frontend: &ServiceFrontend{
+						IPv6: "2001:db8::1",
+						TCP:  8080,
+					},
+				},
+			},
+		},
+	},
 	{
 		initConfig: testConfig,
 		nodes: []Node{
@@ -259,6 +369,24 @@ var testConfigCompile = []struct {
 			Node{Path: "services/test6/frontend", Value: `{"ipv6":"2001:db8::1","tcp":8080}`},
 		}),
 	},
+	{
+		config: Config{
+			Routes: map[string]Route{
+				"default": Route{
+
+				},
+				"test1": Route{
+					Prefix: "10.0.1.0/24",
+					IPVSMethod: "droute",
+				},
+			},
+		},
+		nodes: makeNodeMap([]Node{
+			Node{Path: "routes/default", Value: `{}`},
+			Node{Path: "routes/test1", Value: `{"Prefix":"10.0.1.0/24","IPVSMethod":"droute"}`},
+		}),
+	},
+
 }
 
 func TestConfigCompile(t *testing.T) {
