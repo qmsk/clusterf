@@ -147,6 +147,8 @@ You can also use `clusterf-ipvs --noop` to verify that the code and configuratio
 *   Implement a docker networking extension to configure the public VIP directly within the docker container.
     Removes the need for DNAT on the docker host, as forwaded traffic can be routed directly to the container.
 *   Implement health-checking for service backends within `clusterf-ipvs`. Currently we rely on `clusterf-docker` removing backends for failed docker containers, and etcd TTL expiry if the docker host fails. See [Issue #1](https://github.com/qmsk/clusterf/issues/1).
+*   Implement stats monitoring for the IPVS connection state, using statsd, influxdb etc.
+    The clusterf daemon would be capable of associating the IPVS services and connections with the etcd-named services and backends for better naming of the stats.
 
 ## Acknowledgments
 
