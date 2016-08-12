@@ -46,6 +46,7 @@ func run(configWriter *config.Writer, dockerListen chan docker.State, stopChan c
 		case dockerState, ok := <-dockerListen:
 			if !ok {
 				// docker quit? exit and restart
+				log.Printf("Stopping on Docker close...")
 				return
 			}
 
@@ -66,8 +67,6 @@ func run(configWriter *config.Writer, dockerListen chan docker.State, stopChan c
 			return
 		}
 	}
-
-	log.Printf("Stop...")
 }
 
 func main() {
