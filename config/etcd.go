@@ -298,23 +298,35 @@ func (etcd *EtcdSource) writer() {
 
 	var nodes map[string]Node
 	var timer = time.Tick(etcd.options.TTL / 2)
+	var loopStart, loopEnd time.Time
 
 	for {
+		// XXX: how much of our TTL does this write-loop consume...?
 		select {
 		case refreshTime := <-timer:
-			// XXX: how much of our TTL does this refresh-loop consume...?
-			//		what happens if we're slow, and our TTLs expire before we can refresh?
+			if refreshTime.Before(loopEnd) {
+				log.Printf("config:EtcdSource %v: late refresh at %v-%v", etcd, loopEnd.Sub(loopStart), loopEnd.Sub(refreshTime))
+			} else {
+				log.Printf("config:EtcdSource %v: refresh after %v+%v", etcd, loopEnd.Sub(loopStart), refreshTime.Sub(loopEnd))
+			}
+
+			loopStart = time.Now()
+
+			// what happens if we're slow, and our TTLs expire before we can refresh?
+			// refresh will probably fail, and we should recover..
 			for _, node := range nodes {
 				if err := etcd.refresh(node); err != nil {
 					log.Printf("config:EtcdSource %v: writer: refresh %v: %v", etcd, node, err)
 				}
 			}
-			log.Printf("config:EtcdSoruce %v: refreshed in %v", etcd, time.Now().Sub(refreshTime))
+
+			loopEnd = time.Now()
 
 		case writeNodes, open := <-etcd.writeChan:
-			// if the chan is closed from Flush(), this will get an empty map - and we remove all nodes
+			loopStart = time.Now()
 
 			// update to new dict
+			// if the chan is closed from Flush(), this will get an empty map - and we remove all nodes
 			for key, node := range nodes {
 				if _, exists := writeNodes[key]; !exists {
 					// removed
@@ -350,7 +362,12 @@ func (etcd *EtcdSource) writer() {
 				// exit
 				return
 			}
+
+			loopEnd = time.Now()
+
+			log.Printf("config:EtcdSource %v: writer: update in %v", etcd, loopEnd.Sub(loopStart))
 		}
+
 	}
 }
 
