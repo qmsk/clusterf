@@ -5,6 +5,7 @@ import (
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"log"
+	"math/rand"
 	"net/url"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ type EtcdOptions struct {
 	Hosts  []string      `long:"etcd-host" value-name:"HOST:PORT" description:"Include hosts"`
 	Prefix string        `long:"etcd-prefix" value-name:"/PATH" default:"/clusterf" description:"Namespace all keys under given path"`
 	TTL    time.Duration `long:"etcd-ttl" value-name:"DURATION" default:"10s" description:"Write values with given TTL, and refresh at half of that"`
+
+	mockRefreshDelay time.Duration // test for refresh delay of 0..delay
 }
 
 func (options EtcdOptions) OpenURL(url *url.URL) (*EtcdSource, error) {
@@ -257,6 +260,10 @@ func (etcd *EtcdSource) refresh(node Node) error {
 		Refresh: true,
 	}
 
+	if etcd.options.mockRefreshDelay > 0 {
+		time.Sleep(time.Duration(rand.Float64() * float64(etcd.options.mockRefreshDelay)))
+	}
+
 	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), "", &opts); err != nil {
 		return fixupClusterError(err)
 	} else {
@@ -305,7 +312,7 @@ func (etcd *EtcdSource) writer() {
 		select {
 		case refreshTime := <-timer:
 			if refreshTime.Before(loopEnd) {
-				log.Printf("config:EtcdSource %v: late refresh at %v-%v", etcd, loopEnd.Sub(loopStart), loopEnd.Sub(refreshTime))
+				log.Printf("config:EtcdSource %v: late refresh after %v by %v", etcd, loopEnd.Sub(loopStart), loopEnd.Sub(refreshTime))
 			} else {
 				log.Printf("config:EtcdSource %v: refresh after %v+%v", etcd, loopEnd.Sub(loopStart), refreshTime.Sub(loopEnd))
 			}
@@ -315,8 +322,12 @@ func (etcd *EtcdSource) writer() {
 			// what happens if we're slow, and our TTLs expire before we can refresh?
 			// refresh will probably fail, and we should recover..
 			for _, node := range nodes {
-				if err := etcd.refresh(node); err != nil {
-					log.Printf("config:EtcdSource %v: writer: refresh %v: %v", etcd, node, err)
+				if err := etcd.refresh(node); err == nil {
+
+				} else if err := etcd.set(node); err == nil {
+					log.Printf("config:EtcdSource %v: writer: refresh %v: expired", etcd, node)
+				} else {
+					log.Printf("config:EtcdSource %v: writer: refresh/set %v: %v", etcd, node, err)
 				}
 			}
 
