@@ -9,15 +9,15 @@ import (
 )
 
 type IPVSOptions struct {
-	Debug     bool `long:"ipvs-debug" description:"Dump IPVS netlink messages"`
+	Debug bool `long:"ipvs-debug" description:"Dump IPVS netlink messages"`
 
 	FwdMethod ipvs.FwdMethod `long:"ipvs-fwd-method" value-name:"masq|tunnel|droute" description:"Default IPVS forwarding method in the absence of config routes" default:"masq"`
 	SchedName string         `long:"ipvs-sched-name" description:"Default IPVS service scheduler" default:"wlc"`
 
-	Elide     bool `long:"ipvs-elide" description:"Omit services with no backends"`
+	Elide bool `long:"ipvs-elide" description:"Omit services with no backends"`
 
-	Mock      bool `long:"ipvs-mock" description:"Do not connect to the kernel IPVS state"`
-	Noop      bool `long:"ipvs-noop" description:"Do not write to the kernel IPVS state"`
+	Mock bool `long:"ipvs-mock" description:"Do not connect to the kernel IPVS state"`
+	Noop bool `long:"ipvs-noop" description:"Do not write to the kernel IPVS state"`
 }
 
 func (options IPVSOptions) Open() (*IPVSDriver, error) {

@@ -1,21 +1,21 @@
 package main
 
 import (
-    "github.com/qmsk/clusterf/config"
-    "github.com/qmsk/clusterf"
 	"github.com/jessevdk/go-flags"
-    "log"
+	"github.com/qmsk/clusterf"
+	"github.com/qmsk/clusterf/config"
+	"log"
 )
 
 var Options struct {
-	ConfigReader	config.ReaderOptions	`group:"Config Reader"`
-	IPVS			clusterf.IPVSOptions	`group:"IPVS"`
+	ConfigReader config.ReaderOptions `group:"Config Reader"`
+	IPVS         clusterf.IPVSOptions `group:"IPVS"`
 
-	Flush			bool		`long:"flush" help:"Flush all IPVS services before applying configuration"`
-	Print			bool		`long:"print" help:"Output all IPVS rules after applying configuration"`
+	Flush bool `long:"flush" help:"Flush all IPVS services before applying configuration"`
+	Print bool `long:"print" help:"Output all IPVS rules after applying configuration"`
 }
 
-var flagsParser = flags.NewParser(&Options,  flags.Default)
+var flagsParser = flags.NewParser(&Options, flags.Default)
 
 func main() {
 	if args, err := flagsParser.Parse(); err != nil {
@@ -29,13 +29,13 @@ func main() {
 		log.Fatalf("config.Reader: %v\n", err)
 	}
 
-    // setup
+	// setup
 	ipvsDriver, err := Options.IPVS.Open()
 	if err != nil {
 		log.Fatalf("IPVSOptions.Open: %v\n", err)
 	}
 
-    // sync
+	// sync
 	if Options.Flush {
 		if err := ipvsDriver.Flush(); err != nil {
 			log.Fatalf("IPVSDriver.Flush: %v\n", err)
@@ -63,5 +63,5 @@ func main() {
 		}
 	}
 
-    log.Printf("Exit\n")
+	log.Printf("Exit\n")
 }

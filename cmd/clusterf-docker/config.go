@@ -1,56 +1,56 @@
 package main
 
 import (
-    "github.com/qmsk/clusterf/config"
+	"fmt"
+	dockerclient "github.com/fsouza/go-dockerclient"
+	"github.com/qmsk/clusterf/config"
 	docker "github.com/qmsk/clusterf/docker" // XXX: mixing two APIs sucks
-    dockerclient "github.com/fsouza/go-dockerclient"
-    "fmt"
 	"log"
 	"net"
-    "strings"
+	"strings"
 )
 
 // Translate a docker container into service configs
 func configContainer(updateConfig *config.Config, container *dockerclient.Container) error {
 	labels := container.Config.Labels
-    exposedPorts := container.Config.ExposedPorts
+	exposedPorts := container.Config.ExposedPorts
 
-    // service backends
+	// service backends
 	backendName := container.ID
 
-    for _, serviceName := range strings.Fields(labels["net.qmsk.clusterf.service"]) {
-        var backend config.ServiceBackend
+	for _, serviceName := range strings.Fields(labels["net.qmsk.clusterf.service"]) {
+		var backend config.ServiceBackend
 
-        backend.IPv4 = container.NetworkSettings.IPAddress
-        backend.IPv6 = container.NetworkSettings.GlobalIPv6Address
+		backend.IPv4 = container.NetworkSettings.IPAddress
+		backend.IPv6 = container.NetworkSettings.GlobalIPv6Address
 
-        // find potential ports for service by label
-        portLabels := []struct{
-            proto string
-            label string
-        }{
-            {"tcp", "net.qmsk.clusterf.backend.tcp"},
-            {"udp", "net.qmsk.clusterf.backend.udp"},
-            {"tcp", fmt.Sprintf("net.qmsk.clusterf.backend:%s.tcp", serviceName)},
-            {"udp", fmt.Sprintf("net.qmsk.clusterf.backend:%s.udp", serviceName)},
-        }
+		// find potential ports for service by label
+		portLabels := []struct {
+			proto string
+			label string
+		}{
+			{"tcp", "net.qmsk.clusterf.backend.tcp"},
+			{"udp", "net.qmsk.clusterf.backend.udp"},
+			{"tcp", fmt.Sprintf("net.qmsk.clusterf.backend:%s.tcp", serviceName)},
+			{"udp", fmt.Sprintf("net.qmsk.clusterf.backend:%s.udp", serviceName)},
+		}
 
-        for _, portLabel := range portLabels {
-            // lookup exposed docker.Port
-            portName, labelFound := labels[portLabel.label]
-            if !labelFound {
-                continue
-            }
+		for _, portLabel := range portLabels {
+			// lookup exposed docker.Port
+			portName, labelFound := labels[portLabel.label]
+			if !labelFound {
+				continue
+			}
 
 			dockerPort := dockerclient.Port(fmt.Sprintf("%s/%s", portName, portLabel.proto))
 
 			// check that the port is exposed
-            _, portFound := exposedPorts[dockerPort]
-            if !portFound {
+			_, portFound := exposedPorts[dockerPort]
+			if !portFound {
 				// ignore
-                log.Printf("configContainer %v: service %v %s port %s is not exposed\n", container.ID, serviceName, portLabel.proto, dockerPort)
+				log.Printf("configContainer %v: service %v %s port %s is not exposed\n", container.ID, serviceName, portLabel.proto, dockerPort)
 				continue
-            }
+			}
 
 			var port uint16
 
@@ -59,13 +59,13 @@ func configContainer(updateConfig *config.Config, container *dockerclient.Contai
 				continue
 			}
 
-            // configure
-            switch dockerPort.Proto() {
-            case "tcp":
-                backend.TCP = port
-            case "udp":
-                backend.UDP = port
-            }
+			// configure
+			switch dockerPort.Proto() {
+			case "tcp":
+				backend.TCP = port
+			case "udp":
+				backend.UDP = port
+			}
 
 			// state
 			if container.State.Running {
@@ -73,13 +73,13 @@ func configContainer(updateConfig *config.Config, container *dockerclient.Contai
 			} else {
 				backend.Weight = 0
 			}
-        }
+		}
 
 		if backend.IPv4 == "" && backend.IPv6 == "" {
 			continue
 		}
 
-        if backend.TCP == 0 && backend.UDP == 0 {
+		if backend.TCP == 0 && backend.UDP == 0 {
 			continue
 		}
 
@@ -94,9 +94,9 @@ func configContainer(updateConfig *config.Config, container *dockerclient.Contai
 		} else {
 			log.Printf("configContainer %v: service %v backend %v collision: %v", serviceName, backendName, serviceBackend)
 		}
-    }
+	}
 
-    return nil
+	return nil
 }
 
 // Translate a docker network into route configs
@@ -107,7 +107,7 @@ func configNetwork(updateConfig *config.Config, network *dockerclient.Network) e
 	}
 
 	var route = config.Route{
-		IPVSMethod:		Options.RouteIPVSMethod,
+		IPVSMethod: Options.RouteIPVSMethod,
 	}
 
 	for _, networkConfig := range network.IPAM.Config {
@@ -130,10 +130,10 @@ func configNetwork(updateConfig *config.Config, network *dockerclient.Network) e
 	return nil
 }
 
-func makeConfig (dockerState docker.State) (config.Config, error) {
+func makeConfig(dockerState docker.State) (config.Config, error) {
 	var config = config.Config{
-		Services:	make(map[string]config.Service),
-		Routes:		make(map[string]config.Route),
+		Services: make(map[string]config.Service),
+		Routes:   make(map[string]config.Route),
 	}
 
 	for _, container := range dockerState.Containers {

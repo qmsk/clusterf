@@ -16,7 +16,7 @@ type ReaderOptions struct {
 // Return a new Reader with the given config URLs opened
 func (options ReaderOptions) Reader() (*Reader, error) {
 	var reader = Reader{
-		options:	options,
+		options: options,
 	}
 
 	if err := reader.init(); err != nil {
@@ -40,8 +40,8 @@ func (options ReaderOptions) Reader() (*Reader, error) {
 // Per-source state
 type readerSource struct {
 	options ReaderOptions
-	source	Source
-	config	Config
+	source  Source
+	config  Config
 }
 
 func (rs *readerSource) String() string {
@@ -98,9 +98,9 @@ func (rs *readerSource) open(syncChan chan Node) error {
 // Read and merge Configs from multiple Sources
 type Reader struct {
 	options ReaderOptions
-	sources	map[string]*readerSource
+	sources map[string]*readerSource
 
-	syncChan chan Node
+	syncChan   chan Node
 	listenChan chan Config
 }
 
@@ -116,8 +116,8 @@ func (reader *Reader) init() error {
 // Must be called before start()
 func (reader *Reader) open(source Source) error {
 	var readerSource = &readerSource{
-		options:	reader.options,
-		source:		source,
+		options: reader.options,
+		source:  source,
 	}
 
 	if err := readerSource.open(reader.syncChan); err != nil {

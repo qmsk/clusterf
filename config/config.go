@@ -325,7 +325,7 @@ func (config Config) compile() (map[string]Node, error) {
 	return nodes, err
 }
 
-// Modify this Config in-place, by merging in a copy of the given Config 
+// Modify this Config in-place, by merging in a copy of the given Config
 func (config *Config) merge(mergeConfig Config) {
 	for serviceName, mergeService := range mergeConfig.Services {
 		service := config.Services[serviceName]

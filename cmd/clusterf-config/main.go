@@ -1,24 +1,24 @@
 package main
 
 import (
-	"github.com/qmsk/clusterf/config"
-	"github.com/jessevdk/go-flags"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	"github.com/jessevdk/go-flags"
+	"github.com/qmsk/clusterf/config"
 	"log"
 	"os"
 )
 
 var Options struct {
-	Listen			bool	`long:"listen" description:"Listen for updates"`
-	JSON			bool	`long:"json" description:"Output as JSON"`
+	Listen bool `long:"listen" description:"Listen for updates"`
+	JSON   bool `long:"json" description:"Output as JSON"`
 
-	ConfigReader	config.ReaderOptions	`group:"Config Reader"`
+	ConfigReader config.ReaderOptions `group:"Config Reader"`
 }
 
-var flagsParser = flags.NewParser(&Options,  flags.Default)
+var flagsParser = flags.NewParser(&Options, flags.Default)
 
-func printFrontend (frontend config.ServiceFrontend) {
+func printFrontend(frontend config.ServiceFrontend) {
 	if frontend.IPv4 != "" {
 		fmt.Printf(" ipv4=%v", frontend.IPv4)
 	}
@@ -32,7 +32,7 @@ func printFrontend (frontend config.ServiceFrontend) {
 		fmt.Printf(" udp=%v", frontend.UDP)
 	}
 }
-func printBackend (backend config.ServiceBackend) {
+func printBackend(backend config.ServiceBackend) {
 	if backend.IPv4 != "" {
 		fmt.Printf(" ipv4=%v", backend.IPv4)
 	}
@@ -47,7 +47,7 @@ func printBackend (backend config.ServiceBackend) {
 	}
 }
 
-func outputConfig (config config.Config) {
+func outputConfig(config config.Config) {
 	if Options.JSON {
 		if err := json.NewEncoder(os.Stdout).Encode(config); err != nil {
 			log.Fatalf("json.Encode: %v\n", err)

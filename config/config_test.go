@@ -116,7 +116,6 @@ var testConfigUpdate = []struct {
 		error: "Ignore unknown route node",
 	},
 
-
 	{
 		nodes: []Node{
 			Node{Path: "", IsDir: true},
@@ -139,11 +138,9 @@ var testConfigUpdate = []struct {
 		},
 		config: Config{
 			Routes: map[string]Route{
-				"default": Route{
-
-				},
+				"default": Route{},
 				"test1": Route{
-					Prefix: "10.0.1.0/24",
+					Prefix:     "10.0.1.0/24",
 					IPVSMethod: "droute",
 				},
 			},
@@ -152,11 +149,9 @@ var testConfigUpdate = []struct {
 	{
 		initConfig: Config{
 			Routes: map[string]Route{
-				"default": Route{
-
-				},
+				"default": Route{},
 				"test1": Route{
-					Prefix: "10.0.1.0/24",
+					Prefix:     "10.0.1.0/24",
 					IPVSMethod: "droute",
 				},
 			},
@@ -166,20 +161,16 @@ var testConfigUpdate = []struct {
 		},
 		config: Config{
 			Routes: map[string]Route{
-				"default": Route{
-
-				},
+				"default": Route{},
 			},
 		},
 	},
 	{
 		initConfig: Config{
 			Routes: map[string]Route{
-				"default": Route{
-
-				},
+				"default": Route{},
 				"test1": Route{
-					Prefix: "10.0.1.0/24",
+					Prefix:     "10.0.1.0/24",
 					IPVSMethod: "droute",
 				},
 			},
@@ -372,11 +363,9 @@ var testConfigCompile = []struct {
 	{
 		config: Config{
 			Routes: map[string]Route{
-				"default": Route{
-
-				},
+				"default": Route{},
 				"test1": Route{
-					Prefix: "10.0.1.0/24",
+					Prefix:     "10.0.1.0/24",
 					IPVSMethod: "droute",
 				},
 			},
@@ -386,7 +375,6 @@ var testConfigCompile = []struct {
 			Node{Path: "routes/test1", Value: `{"Prefix":"10.0.1.0/24","IPVSMethod":"droute"}`},
 		}),
 	},
-
 }
 
 func TestConfigCompile(t *testing.T) {
@@ -417,9 +405,9 @@ func TestConfigCompile(t *testing.T) {
 	}
 }
 
-var testConfigMerge = []struct{
-	mergeConfigs	[]Config
-	config			Config
+var testConfigMerge = []struct {
+	mergeConfigs []Config
+	config       Config
 }{
 	{
 		config: Config{},

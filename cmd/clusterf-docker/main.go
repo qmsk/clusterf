@@ -1,28 +1,28 @@
 package main
 
 import (
-    "github.com/qmsk/clusterf/config"
-    "github.com/qmsk/clusterf/docker"
 	"github.com/jessevdk/go-flags"
-    "log"
+	"github.com/qmsk/clusterf/config"
+	"github.com/qmsk/clusterf/docker"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
 var Options struct {
-	ConfigWriter	config.WriterOptions	`group:"Config Writer"`
-	Docker			docker.Options
+	ConfigWriter config.WriterOptions `group:"Config Writer"`
+	Docker       docker.Options
 
-	ExitFlush		bool	`long:"exit-flush" description:"Flush backends on exit signal"`
+	ExitFlush bool `long:"exit-flush" description:"Flush backends on exit signal"`
 
-	RouteNetwork	string  `long:"route-network" value-name:"NETWORK-NAME" description:"Advertise docker network by name"`
-	RouteGateway4	string	`long:"route-gateway4" value-name:"IPV4-ADDRESS" description:"Advertise docker network routes with IPv4 gateway"`
-	RouteGateway6	string	`long:"route-gateway6" value-name:"IPV6-ADDRESS" description:"Advertise docker network routes with IPv6 gateway"`
-	RouteIPVSMethod string	`long:"route-ipvs-method" value-name:"masq|tunnel|droute" description:"Advertise docker network routes with ipvs-method"`
+	RouteNetwork    string `long:"route-network" value-name:"NETWORK-NAME" description:"Advertise docker network by name"`
+	RouteGateway4   string `long:"route-gateway4" value-name:"IPV4-ADDRESS" description:"Advertise docker network routes with IPv4 gateway"`
+	RouteGateway6   string `long:"route-gateway6" value-name:"IPV6-ADDRESS" description:"Advertise docker network routes with IPv6 gateway"`
+	RouteIPVSMethod string `long:"route-ipvs-method" value-name:"masq|tunnel|droute" description:"Advertise docker network routes with ipvs-method"`
 }
 
-var flagsParser = flags.NewParser(&Options,  flags.Default)
+var flagsParser = flags.NewParser(&Options, flags.Default)
 
 // Flush service backends when stopping
 func stop(configWriter *config.Writer) {
@@ -79,18 +79,18 @@ func main() {
 		log.Fatalf("config.Writer: %v", err)
 	}
 
-    docker, err := Options.Docker.Open()
+	docker, err := Options.Docker.Open()
 	if err != nil {
-        log.Fatalf("docker:Docker.Open: %v", err)
-    } else {
-        log.Printf("docker:Docker.Open: %v", docker)
-    }
+		log.Fatalf("docker:Docker.Open: %v", err)
+	} else {
+		log.Printf("docker:Docker.Open: %v", docker)
+	}
 
-    dockerChan, err := docker.Listen()
+	dockerChan, err := docker.Listen()
 	if err != nil {
-        log.Fatalf("docker:Docker.Listen: %v", err)
-    } else {
-        log.Printf("docker:Docker.Listen...")
+		log.Fatalf("docker:Docker.Listen: %v", err)
+	} else {
+		log.Printf("docker:Docker.Listen...")
 	}
 
 	// optionally arrange to stop on signal

@@ -44,11 +44,9 @@ var testFilesConfig Config = Config{
 		},
 	},
 	Routes: map[string]Route{
-		"default": Route{
-
-		},
+		"default": Route{},
 		"test1": Route{
-			Prefix:		"192.168.1.0/24",
+			Prefix:     "192.168.1.0/24",
 			IPVSMethod: "droute",
 		},
 		"test2": Route{
@@ -210,7 +208,6 @@ var testReaderSources = map[string]*testReaderSyncSource{
 			Node{Path: "routes/test3", Value: `{"Prefix": "192.168.2.0/24", "IpvsMethod": "droute"}`},
 		},
 	},
-
 }
 
 var testReaderConfig Config = Config{
@@ -251,7 +248,7 @@ var testReaderConfig Config = Config{
 	},
 	Routes: map[string]Route{
 		"test1": Route{
-			Prefix:		"192.168.1.0/24",
+			Prefix:     "192.168.1.0/24",
 			IPVSMethod: "droute",
 		},
 		"test2": Route{
