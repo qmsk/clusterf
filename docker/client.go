@@ -85,7 +85,7 @@ func (client *Client) getContainers() (Containers, error) {
 }
 
 func (client *Client) getNetwork(id string) (*docker.Network, error) {
-	if network, err := client.dockerClient.NetworkInfo(id); err != nil {
+	if network, err := client.dockerClient.NetworkInfo(id); err == nil {
 		return network, nil
 	} else if _, ok := err.(*docker.NoSuchNetwork); ok {
 		return nil, nil
