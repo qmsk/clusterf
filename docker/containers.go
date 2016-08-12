@@ -101,9 +101,9 @@ func (containers Containers) update(event containerEvent) {
 		}
 
 		if event.Container.State.Running {
-			log.Printf("docker:Containers.update %v -> %v: down", event, state)
-		} else {
 			log.Printf("docker:Containers.update %v -> %v: up", event, state)
+		} else {
+			log.Printf("docker:Containers.update %v -> %v: down", event, state)
 		}
 
 		containers[event.ID] = event.Container
