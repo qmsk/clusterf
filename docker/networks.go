@@ -25,7 +25,9 @@ func (event networkEvent) State() networkState {
 
 	switch event.Action {
 	case "create":
+
 	case "connect", "disconnect":
+
 	case "destroy":
 		state.Exists = false
 	}
@@ -35,6 +37,10 @@ func (event networkEvent) State() networkState {
 
 type networkState struct {
 	Exists bool
+}
+
+func (state networkState) String() string {
+	return fmt.Sprintf("exists=%v", state.Exists)
 }
 
 type Networks map[string]*docker.Network
