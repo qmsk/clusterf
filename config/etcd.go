@@ -250,13 +250,14 @@ func (etcd *EtcdSource) syncNode(etcdAction string, etcdNode *client.Node) (Node
 	return node, nil
 }
 
+// Refresh TTL for existing key that has not yet expired
 func (etcd *EtcdSource) refresh(node Node) error {
 	var opts = client.SetOptions{
 		TTL:     etcd.options.TTL,
 		Refresh: true,
 	}
 
-	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), node.Value, &opts); err != nil {
+	if _, err := etcd.keysAPI.Set(context.Background(), etcd.path(node.Path), "", &opts); err != nil {
 		return fixupClusterError(err)
 	} else {
 		return nil
@@ -300,13 +301,16 @@ func (etcd *EtcdSource) writer() {
 
 	for {
 		select {
-		case <-timer:
+		case refreshTime := <-timer:
 			// XXX: how much of our TTL does this refresh-loop consume...?
+			//		what happens if we're slow, and our TTLs expire before we can refresh?
 			for _, node := range nodes {
 				if err := etcd.refresh(node); err != nil {
 					log.Printf("config:EtcdSource %v: writer: refresh %v: %v", etcd, node, err)
 				}
 			}
+			log.Printf("config:EtcdSoruce %v: refreshed in %v", etcd, time.Now().Sub(refreshTime))
+
 		case writeNodes, open := <-etcd.writeChan:
 			// if the chan is closed from Flush(), this will get an empty map - and we remove all nodes
 
